@@ -14,6 +14,7 @@ jobs:
     timeout-minutes: 60
 
     steps:
+
       # ============================================================
       # 1. Checkout DFZH source
       # ============================================================
@@ -22,22 +23,97 @@ jobs:
         with:
           path: dfzh-source
 
+
       # ============================================================
       # 2. Checkout DFHack 53.06-r1
+      #
+      # IMPORTANT:
+      # DFHack depends on many git submodules.
+      # --recurse-submodules is required.
       # ============================================================
       - name: Checkout DFHack source
         shell: cmd
         run: |
-          git clone --depth 1 --branch %DFHACK_VERSION% https://github.com/DFHack/dfhack.git dfhack
+          git clone ^
+            --depth 1 ^
+            --branch %DFHACK_VERSION% ^
+            --recurse-submodules ^
+            --shallow-submodules ^
+            https://github.com/DFHack/dfhack.git ^
+            dfhack
+
 
       # ============================================================
-      # 3. Initialize DFHack submodule
+      # 3. Verify DFHack submodules
       # ============================================================
-      - name: Init DFHack submodules
+      - name: Verify DFHack submodules
         shell: cmd
         run: |
           cd dfhack
-          git submodule update --init --depth 1 library/xml
+
+          echo ========================================
+          echo DFHack commit
+          echo ========================================
+
+          git rev-parse HEAD
+
+          echo.
+          echo ========================================
+          echo Submodule status
+          echo ========================================
+
+          git submodule status
+
+          echo.
+          echo ========================================
+          echo Checking required directories
+          echo ========================================
+
+          if not exist depends\dfhooks\CMakeLists.txt (
+            echo ERROR: dfhooks submodule is missing.
+            exit /b 1
+          )
+
+          if not exist depends\googletest\CMakeLists.txt (
+            echo ERROR: googletest submodule is missing.
+            exit /b 1
+          )
+
+          if not exist depends\jsoncpp-sub\CMakeLists.txt (
+            echo ERROR: jsoncpp submodule is missing.
+            exit /b 1
+          )
+
+          if not exist depends\clsocket\CMakeLists.txt (
+            echo ERROR: clsocket submodule is missing.
+            exit /b 1
+          )
+
+          if not exist depends\libzip\CMakeLists.txt (
+            echo ERROR: libzip submodule is missing.
+            exit /b 1
+          )
+
+          if not exist depends\xlsxio\CMakeLists.txt (
+            echo ERROR: xlsxio submodule is missing.
+            exit /b 1
+          )
+
+          if not exist depends\libexpat\expat (
+            echo ERROR: libexpat submodule is missing.
+            exit /b 1
+          )
+
+          if not exist scripts\CMakeLists.txt (
+            echo ERROR: DFHack scripts directory is missing.
+            exit /b 1
+          )
+
+          echo.
+          echo ========================================
+          echo All required DFHack submodules are present.
+          echo ========================================
+
 
       # ============================================================
       # 4. Locate Visual Studio
@@ -66,14 +142,16 @@ jobs:
           echo %VS_PATH%
 
           echo.
-          echo MSBuild:
+          echo Checking MSBuild:
 
           if exist "%VS_PATH%\MSBuild\Current\Bin\MSBuild.exe" (
+            echo MSBuild found:
             echo %VS_PATH%\MSBuild\Current\Bin\MSBuild.exe
           ) else (
             echo ERROR: MSBuild.exe not found.
             exit /b 1
           )
+
 
       # ============================================================
       # 5. Install current vcpkg
@@ -82,8 +160,11 @@ jobs:
         shell: cmd
         run: |
           git clone --depth 1 https://github.com/microsoft/vcpkg.git vcpkg
+
           cd vcpkg
+
           call bootstrap-vcpkg.bat
+
 
       # ============================================================
       # 6. Cache vcpkg
@@ -98,6 +179,7 @@ jobs:
           restore-keys: |
             vcpkg-dfzh-${{ runner.os }}-x64-
 
+
       # ============================================================
       # 7. Install DFZH dependencies
       # ============================================================
@@ -111,6 +193,7 @@ jobs:
             spdlog:x64-windows ^
             tomlplusplus:x64-windows
 
+
       # ============================================================
       # 8. Prepare DFZH vcpkg dependencies
       # ============================================================
@@ -121,7 +204,10 @@ jobs:
 
           if not exist dfzh-source\3rdParty\vcpkg_installed mkdir dfzh-source\3rdParty\vcpkg_installed
 
-          xcopy /E /I /Y vcpkg\installed\* dfzh-source\3rdParty\vcpkg_installed\
+          xcopy /E /I /Y ^
+            vcpkg\installed\* ^
+            dfzh-source\3rdParty\vcpkg_installed\
+
 
       # ============================================================
       # 9. Extract data.zip
@@ -130,7 +216,9 @@ jobs:
         shell: cmd
         run: |
           cd dfzh-source
+
           tar -xf data.zip
+
 
       # ============================================================
       # 10. Copy DFZH into DFHack
@@ -140,16 +228,25 @@ jobs:
         run: |
           if not exist dfhack\plugins\df_chinese mkdir dfhack\plugins\df_chinese
 
-          copy /Y dfzh-source\CMakeLists.txt dfhack\plugins\df_chinese\CMakeLists.txt
+          copy /Y ^
+            dfzh-source\CMakeLists.txt ^
+            dfhack\plugins\df_chinese\CMakeLists.txt
 
-          xcopy /E /I /Y dfzh-source\dfzh dfhack\plugins\df_chinese\dfzh
+          xcopy /E /I /Y ^
+            dfzh-source\dfzh ^
+            dfhack\plugins\df_chinese\dfzh
 
-          xcopy /E /I /Y dfzh-source\data dfhack\plugins\df_chinese\data
+          xcopy /E /I /Y ^
+            dfzh-source\data ^
+            dfhack\plugins\df_chinese\data
 
-          xcopy /E /I /Y dfzh-source\3rdParty dfhack\plugins\df_chinese\3rdParty
+          xcopy /E /I /Y ^
+            dfzh-source\3rdParty ^
+            dfhack\plugins\df_chinese\3rdParty
+
 
       # ============================================================
-      # 11. Verify source
+      # 11. Verify DFZH source
       # ============================================================
       - name: Verify plugin source
         shell: cmd
@@ -160,11 +257,11 @@ jobs:
 
           dir /s /b dfhack\plugins\df_chinese
 
+
       # ============================================================
       # 12. Configure CMake
       #
-      # windows-latest currently uses Visual Studio 18.
-      # Do not hard-code the VS 2022 generator.
+      # windows-latest currently provides Visual Studio 18.
       # ============================================================
       - name: Configure CMake
         shell: cmd
@@ -174,6 +271,7 @@ jobs:
           if exist build rmdir /S /Q build
 
           mkdir build
+
           cd build
 
           cmake .. ^
@@ -182,6 +280,7 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE=..\..\vcpkg\scripts\buildsystems\vcpkg.cmake ^
             -DBUILD_DFHACK_DOCUMENTATION=OFF ^
             -DBUILD_DFHACK_LAUNCHER=OFF
+
 
       # ============================================================
       # 13. Build DFZH
@@ -196,6 +295,7 @@ jobs:
             --target dfzh ^
             -- /m
 
+
       # ============================================================
       # 14. Find DFZH DLL
       # ============================================================
@@ -207,7 +307,9 @@ jobs:
           echo ========================================
 
           dir /s /b dfhack\build\dfzh.plug.dll 2>nul
+
           dir /s /b dfhack\build\plugins\dfzh.plug.dll 2>nul
+
           dir /s /b dfhack\build\plugins\df_chinese\dfzh.plug.dll 2>nul
 
           echo.
@@ -217,6 +319,7 @@ jobs:
 
           dir /s /b dfhack\build\*.dll
 
+
       # ============================================================
       # 15. Create release package
       # ============================================================
@@ -224,8 +327,11 @@ jobs:
         shell: cmd
         run: |
           mkdir release-package
+
           mkdir release-package\plugins
+
           mkdir release-package\data
+
           mkdir release-package\data\dfzh
 
           echo ========================================
@@ -251,7 +357,10 @@ jobs:
           echo Copying DFZH data
           echo ========================================
 
-          xcopy /E /I /Y dfzh-source\data\* release-package\data\dfzh\
+          xcopy /E /I /Y ^
+            dfzh-source\data\* ^
+            release-package\data\dfzh\
+
 
           echo.
           echo ========================================
@@ -259,6 +368,7 @@ jobs:
           echo ========================================
 
           dir /s /b release-package
+
 
       # ============================================================
       # 16. Upload artifact
