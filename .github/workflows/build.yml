@@ -354,7 +354,7 @@ jobs:
             dfhack\build\*.dll
 
 
-      # ============================================================
+          # ============================================================
       # 14. Create release package
       # ============================================================
       - name: Create release package
@@ -370,19 +370,34 @@ jobs:
           mkdir release-package\data
           mkdir release-package\data\dfzh
 
-          set "FOUND_DLL="
+          echo ========================================
+          echo Copying DFZH DLL
+          echo ========================================
 
-          for /r "dfhack\build" %%F in (dfzh.plug.dll) do (
-            if not defined FOUND_DLL (
-              set "FOUND_DLL=%%F"
-              copy /Y "%%F" "release-package\plugins\dfzh.plug.dll"
-            )
-          )
+          set "DFZH_DLL=dfhack\build\plugins\external\dfzh\Release\dfzh.plug.dll"
 
-          if not defined FOUND_DLL (
-            echo ERROR: dfzh.plug.dll was not found
+          if not exist "%DFZH_DLL%" (
+            echo ERROR: DFZH DLL not found:
+            echo %DFZH_DLL%
             exit /b 1
           )
+
+          copy /Y "%DFZH_DLL%" "release-package\plugins\dfzh.plug.dll"
+
+          if not exist "release-package\plugins\dfzh.plug.dll" (
+            echo ERROR: DFZH DLL was not copied
+            exit /b 1
+          )
+
+          echo.
+          echo DFZH DLL copied successfully:
+          dir "release-package\plugins"
+
+
+          echo.
+          echo ========================================
+          echo Copying DFZH data
+          echo ========================================
 
           xcopy /E /I /Y ^
             dfzh-source\data\* ^
