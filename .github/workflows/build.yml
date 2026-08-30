@@ -111,7 +111,6 @@ jobs:
         shell: cmd
         run: |
           git clone ^
-            --depth 1 ^
             https://github.com/microsoft/vcpkg.git ^
             vcpkg
 
