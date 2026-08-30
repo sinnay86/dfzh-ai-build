@@ -18,10 +18,12 @@
 #include <algorithm>
 
 DFHACK_PLUGIN("dfzh");
+
 REQUIRE_GLOBAL(world);
 
 namespace DFHack {
-    // for lifecycle/status events (init, shutdown, enable, save/load)
+
+    // for lifecycle/status events
     // LINFO: important but infrequent state changes
     DBG_DECLARE(dfzh, status, DebugCategory::LINFO);
 
@@ -36,6 +38,7 @@ namespace DFHack {
     namespace DFZH {
         DFHACK_PLUGIN_IS_ENABLED(is_enabled);
     }
+
 }
 
 using namespace DFHack;
@@ -138,6 +141,7 @@ DFhackCExport command_result plugin_enable(
     );
 
     if (enable != is_enabled) {
+
         is_enabled = enable;
 
         Hooks::plugin_enable(is_enabled);
@@ -149,6 +153,7 @@ DFhackCExport command_result plugin_enable(
         }
 
         if (is_enabled) {
+
             float duration_ms =
                 static_cast<float>(Hooks::dfzh_init_elapsed_us)
                 / 1000.0f;
@@ -160,6 +165,7 @@ DFhackCExport command_result plugin_enable(
         }
 
     } else {
+
         INFO(status, out).print(
             "[{}] now is {}.\n",
             plugin_name,
@@ -182,39 +188,54 @@ DFhackCExport command_result plugin_onstatechange(
     switch (event) {
 
         case SC_UNKNOWN:
+
             TRACE(onupdate, out).printerr(
                 "[{}] SC_UNKNOWN\n",
                 plugin_name
             );
+
             break;
 
+
         case SC_WORLD_LOADED:
+
             TRACE(onupdate, out).printerr(
                 "[{}] SC_WORLD_LOADED\n",
                 plugin_name
             );
+
             break;
 
+
         case SC_WORLD_UNLOADED:
+
             TRACE(onupdate, out).printerr(
                 "[{}] SC_WORLD_UNLOADED\n",
                 plugin_name
             );
+
             break;
 
+
         case SC_MAP_LOADED:
+
             TRACE(onupdate, out).printerr(
                 "[{}] SC_MAP_LOADED\n",
                 plugin_name
             );
+
             break;
 
+
         case SC_MAP_UNLOADED:
+
             TRACE(onupdate, out).printerr(
                 "[{}] SC_MAP_UNLOADED\n",
                 plugin_name
             );
+
             break;
+
 
         case SC_VIEWSCREEN_CHANGED:
         {
@@ -237,6 +258,7 @@ DFhackCExport command_result plugin_onstatechange(
                 auto fs = Gui::getFocusStrings(vs);
 
                 if (fs.size()) {
+
                     name = "";
 
                     for (const auto& str : fs) {
@@ -257,32 +279,44 @@ DFhackCExport command_result plugin_onstatechange(
             break;
         }
 
+
         case SC_CORE_INITIALIZED:
+
             DEBUG(onupdate, out).printerr(
                 "[{}] SC_CORE_INITIALIZED\n",
                 plugin_name
             );
+
             break;
 
+
         case SC_BEGIN_UNLOAD:
+
             DEBUG(onupdate, out).printerr(
                 "[{}] SC_BEGIN_UNLOAD\n",
                 plugin_name
             );
+
             break;
 
+
         case SC_PAUSED:
+
             TRACE(onupdate, out).printerr(
                 "[{}] SC_PAUSED\n",
                 plugin_name
             );
+
             break;
 
+
         case SC_UNPAUSED:
+
             TRACE(onupdate, out).printerr(
                 "[{}] SC_UNPAUSED\n",
                 plugin_name
             );
+
             break;
     }
 
@@ -394,18 +428,28 @@ static void add_binding(
 
     for (const auto& binding : current_bindings) {
 
-        Core::getInstance()
-            .getHotkeyManager()
-            ->addKeybind(
+        bool result =
+            Core::getInstance().AddKeyBinding(
                 binding.first,
                 binding.second
             );
 
-        DEBUG(command, out).print(
-            "adding keybinding: {} -> {}\n",
-            binding.first,
-            binding.second
-        );
+        if (result) {
+
+            DEBUG(command, out).print(
+                "adding keybinding: {} -> {}\n",
+                binding.first,
+                binding.second
+            );
+
+        } else {
+
+            WARN(command, out).print(
+                "failed to add keybinding: {} -> {}\n",
+                binding.first,
+                binding.second
+            );
+        }
     }
 }
 
@@ -415,16 +459,27 @@ static void remove_binding(
 ) {
     for (const auto& binding : current_bindings) {
 
-        Core::getInstance()
-            .getHotkeyManager()
-            ->removeKeybind(
+        bool result =
+            Core::getInstance().ClearKeyBindings(
                 binding.first
             );
 
-        DEBUG(command, out).print(
-            "removing keybinding: {} -> {}\n",
-            binding.first,
-            binding.second
-        );
+        if (result) {
+
+            DEBUG(command, out).print(
+                "removing keybinding: {} -> {}\n",
+                binding.first,
+                binding.second
+            );
+
+        } else {
+
+            WARN(command, out).print(
+                "failed to remove keybinding: {}\n",
+                binding.first
+            );
+        }
     }
+
+    current_bindings.clear();
 }
