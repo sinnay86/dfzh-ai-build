@@ -7,7 +7,6 @@ on:
 
 env:
   DFHACK_VERSION: "53.06-r1"
-  VCPKG_COMMIT: "2024.07.12"
 
 jobs:
   build:
@@ -15,119 +14,123 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      # ------------------------------------------------------------
+      # ============================================================
       # 1. Checkout DFZH source
-      # ------------------------------------------------------------
+      # ============================================================
       - name: Checkout dfzh source
         uses: actions/checkout@v4
         with:
           path: dfzh-source
 
-      # ------------------------------------------------------------
-      # 2. Checkout matching DFHack version
-      # ------------------------------------------------------------
+      # ============================================================
+      # 2. Checkout DFHack 53.06-r1
+      # ============================================================
       - name: Checkout DFHack source
         shell: cmd
         run: |
           git clone --depth 1 --branch %DFHACK_VERSION% https://github.com/DFHack/dfhack.git dfhack
 
-      # ------------------------------------------------------------
+      # ============================================================
       # 3. Initialize required DFHack submodule
-      # ------------------------------------------------------------
+      # ============================================================
       - name: Init DFHack submodules
         shell: cmd
         run: |
           cd dfhack
           git submodule update --init --depth 1 library/xml
 
-      # ------------------------------------------------------------
-      # 4. Install vcpkg
-      # ------------------------------------------------------------
+      # ============================================================
+      # 4. Install current vcpkg
+      # ============================================================
       - name: Install vcpkg
         shell: cmd
         run: |
-          git clone --depth 1 --branch %VCPKG_COMMIT% https://github.com/microsoft/vcpkg.git vcpkg
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git vcpkg
           cd vcpkg
           call bootstrap-vcpkg.bat
 
-      # ------------------------------------------------------------
+      # ============================================================
       # 5. Cache vcpkg packages
-      # ------------------------------------------------------------
+      # ============================================================
       - name: Cache vcpkg
         uses: actions/cache@v4
         with:
           path: |
             vcpkg/installed
             vcpkg/packages
-          key: vcpkg-dfzh-${{ runner.os }}-x64-${{ env.VCPKG_COMMIT }}
+          key: vcpkg-dfzh-${{ runner.os }}-x64-current-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-dfzh-${{ runner.os }}-x64-current-
 
-      # ------------------------------------------------------------
+      # ============================================================
       # 6. Install DFZH dependencies
-      # ------------------------------------------------------------
+      # ============================================================
       - name: Install dependencies
         shell: cmd
         run: |
           cd vcpkg
           vcpkg install detours:x64-windows spdlog:x64-windows tomlplusplus:x64-windows
 
-      # ------------------------------------------------------------
-      # 7. Prepare DFZH source tree
+      # ============================================================
+      # 7. Prepare DFZH vcpkg dependency directory
       #
       # DFZH's CMakeLists.txt expects:
       #
-      #   3rdParty/
-      #     vcpkg_installed/
-      #       x64-windows/
-      #
-      # So copy vcpkg's installed tree there.
-      # ------------------------------------------------------------
+      # 3rdParty/vcpkg_installed/x64-windows/
+      # ============================================================
       - name: Prepare dfzh dependencies
         shell: cmd
         run: |
-          mkdir dfzh-source\3rdParty\vcpkg_installed
+          if not exist dfzh-source\3rdParty mkdir dfzh-source\3rdParty
+          if not exist dfzh-source\3rdParty\vcpkg_installed mkdir dfzh-source\3rdParty\vcpkg_installed
+
           xcopy /E /I /Y vcpkg\installed\* dfzh-source\3rdParty\vcpkg_installed\
 
-      # ------------------------------------------------------------
+      # ============================================================
       # 8. Extract data.zip
-      # ------------------------------------------------------------
+      # ============================================================
       - name: Extract data.zip
         shell: cmd
         run: |
           cd dfzh-source
           tar -xf data.zip
 
-      # ------------------------------------------------------------
+      # ============================================================
       # 9. Copy DFZH into DFHack plugin directory
-      # ------------------------------------------------------------
+      # ============================================================
       - name: Copy dfzh to DFHack
         shell: cmd
         run: |
-          mkdir dfhack\plugins\df_chinese
+          if not exist dfhack\plugins\df_chinese mkdir dfhack\plugins\df_chinese
 
           copy /Y dfzh-source\CMakeLists.txt dfhack\plugins\df_chinese\CMakeLists.txt
 
           xcopy /E /I /Y dfzh-source\dfzh dfhack\plugins\df_chinese\dfzh
 
-          xcopy /E /I /Y dfzh-source\3rdParty dfhack\plugins\df_chinese\3rdParty
-
           xcopy /E /I /Y dfzh-source\data dfhack\plugins\df_chinese\data
 
-      # ------------------------------------------------------------
-      # 10. Show final plugin directory
-      # ------------------------------------------------------------
+          xcopy /E /I /Y dfzh-source\3rdParty dfhack\plugins\df_chinese\3rdParty
+
+      # ============================================================
+      # 10. Verify DFZH source tree
+      # ============================================================
       - name: Verify plugin source
         shell: cmd
         run: |
-          echo ===== df_chinese directory =====
+          echo ========================================
+          echo DFZH plugin directory
+          echo ========================================
+
           dir /s /b dfhack\plugins\df_chinese
 
-      # ------------------------------------------------------------
+      # ============================================================
       # 11. Configure DFHack
-      # ------------------------------------------------------------
+      # ============================================================
       - name: Configure CMake
         shell: cmd
         run: |
           cd dfhack
+
           mkdir build
           cd build
 
@@ -138,33 +141,42 @@ jobs:
             -DBUILD_DFHACK_DOCUMENTATION=OFF ^
             -DBUILD_DFHACK_LAUNCHER=OFF
 
-      # ------------------------------------------------------------
+      # ============================================================
       # 12. Build DFZH
-      # ------------------------------------------------------------
+      # ============================================================
       - name: Build dfzh
         shell: cmd
         run: |
           cd dfhack\build
-          cmake --build . --config Release --target dfzh -- /m
 
-      # ------------------------------------------------------------
-      # 13. Find generated plugin
-      # ------------------------------------------------------------
+          cmake --build . ^
+            --config Release ^
+            --target dfzh ^
+            -- /m
+
+      # ============================================================
+      # 13. Find generated DLL
+      # ============================================================
       - name: Find DFZH DLL
         shell: cmd
         run: |
-          echo ===== Searching for dfzh.plug.dll =====
+          echo ========================================
+          echo Searching for dfzh.plug.dll
+          echo ========================================
 
           dir /s /b dfhack\build\dfzh.plug.dll 2>nul
           dir /s /b dfhack\build\plugins\dfzh.plug.dll 2>nul
           dir /s /b dfhack\build\plugins\df_chinese\dfzh.plug.dll 2>nul
 
-          echo ===== All DLL files =====
+          echo ========================================
+          echo All DLL files
+          echo ========================================
+
           dir /s /b dfhack\build\*.dll
 
-      # ------------------------------------------------------------
+      # ============================================================
       # 14. Create release package
-      # ------------------------------------------------------------
+      # ============================================================
       - name: Create release package
         shell: cmd
         run: |
@@ -173,22 +185,39 @@ jobs:
           mkdir release-package\data
           mkdir release-package\data\dfzh
 
-          echo ===== Copying DFZH plugin =====
+          echo ========================================
+          echo Copying DFZH DLL
+          echo ========================================
+
+          set "FOUND_DLL="
 
           for /r "dfhack\build" %%F in (dfzh.plug.dll) do (
-            copy /Y "%%F" "release-package\plugins\dfzh.plug.dll"
+            if not defined FOUND_DLL (
+              set "FOUND_DLL=%%F"
+              copy /Y "%%F" "release-package\plugins\dfzh.plug.dll"
+            )
           )
 
-          echo ===== Copying DFZH data =====
+          if not defined FOUND_DLL (
+            echo ERROR: dfzh.plug.dll was not found.
+            exit /b 1
+          )
+
+          echo ========================================
+          echo Copying DFZH data
+          echo ========================================
 
           xcopy /E /I /Y dfzh-source\data\* release-package\data\dfzh\
 
-          echo ===== Release package =====
+          echo ========================================
+          echo Release package
+          echo ========================================
+
           dir /s /b release-package
 
-      # ------------------------------------------------------------
+      # ============================================================
       # 15. Upload artifact
-      # ------------------------------------------------------------
+      # ============================================================
       - name: Upload release package
         uses: actions/upload-artifact@v4
         with:
