@@ -25,8 +25,7 @@ jobs:
 
 
       # ============================================================
-      # 2. Checkout DFHack
-      #    Download ALL DFHack submodules.
+      # 2. Checkout DFHack 53.06-r1 with ALL submodules
       # ============================================================
       - name: Checkout DFHack source
         shell: cmd
@@ -111,9 +110,9 @@ jobs:
 
 
       # ============================================================
-      # 4. Locate Visual Studio
+      # 4. Check Visual Studio
       # ============================================================
-      - name: Locate Visual Studio
+      - name: Check Visual Studio
         shell: cmd
         run: |
           echo ========================================
@@ -123,7 +122,7 @@ jobs:
           where vswhere
 
           echo.
-          echo Installed Visual Studio:
+          echo Installation:
 
           vswhere -latest ^
             -products * ^
@@ -138,49 +137,49 @@ jobs:
           )
 
           if not defined VS_PATH (
-            echo ERROR: Visual Studio installation not found.
+            echo ERROR: Visual Studio not found.
             exit /b 1
           )
 
           echo VS_PATH=%VS_PATH%
 
-          if exist "%VS_PATH%\MSBuild\Current\Bin\MSBuild.exe" (
-            echo MSBuild found.
-          ) else (
-            echo ERROR: MSBuild.exe not found.
+          if not exist "%VS_PATH%\MSBuild\Current\Bin\MSBuild.exe" (
+            echo ERROR: MSBuild not found.
             exit /b 1
           )
 
+          echo MSBuild found.
+
+          echo.
+          echo MSBuild version:
+
+          "%VS_PATH%\MSBuild\Current\Bin\MSBuild.exe" -version
+
 
       # ============================================================
-      # 5. Check MSVC toolchain
+      # 5. Check MSVC version
       # ============================================================
-      - name: Check MSVC toolchain
+      - name: Check MSVC version
         shell: cmd
         run: |
           echo ========================================
-          echo MSVC toolchain
+          echo MSVC
           echo ========================================
 
           for /f "usebackq tokens=*" %%i in (`vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
             set "VS_PATH=%%i"
           )
 
-          echo Visual Studio:
-          echo %VS_PATH%
-
-          echo.
           echo Installed MSVC versions:
 
           dir /b "%VS_PATH%\VC\Tools\MSVC"
 
           echo.
-          echo Compiler versions:
 
           for /d %%D in ("%VS_PATH%\VC\Tools\MSVC\*") do (
             echo ----------------------------------------
             echo %%D
-            "%%D\bin\Hostx64\x64\cl.exe" 2>&1 | findstr /C:"Version"
+            "%%D\bin\Hostx64\x64\cl.exe" 2>&1
           )
 
 
@@ -268,7 +267,7 @@ jobs:
         shell: cmd
         run: |
           echo ========================================
-          echo DFZH plugin source
+          echo DFZH source
           echo ========================================
 
           dir /s /b dfhack\plugins\df_chinese
@@ -297,45 +296,67 @@ jobs:
 
 
       # ============================================================
-      # 13. List CMake build targets
-      #
-      # IMPORTANT:
-      # Do NOT assume the plugin target is named "dfzh".
+      # 13. Inspect generated Visual Studio projects
       # ============================================================
-      - name: List build targets
-        shell: cmd
-        run: |
-          cd dfhack\build
-
-          echo ========================================
-          echo Available CMake targets
-          echo ========================================
-
-          cmake --build . --config Release --target help
-
-
-      # ============================================================
-      # 14. Upload CMake logs / build information
-      # ============================================================
-      - name: Show generated project files
+      - name: Inspect generated projects
         shell: cmd
         run: |
           echo ========================================
-          echo Generated Visual Studio projects
+          echo Solution files
+          echo ========================================
+
+          dir /s /b dfhack\build\*.sln
+
+          echo.
+          echo ========================================
+          echo All Visual Studio projects
           echo ========================================
 
           dir /s /b dfhack\build\*.vcxproj
 
           echo.
           echo ========================================
-          echo DFZH related files
+          echo DFZH-related projects
           echo ========================================
 
-          dir /s /b dfhack\build\*dfzh* 2>nul
+          dir /s /b dfhack\build\*dfzh*.vcxproj 2>nul
 
           echo.
           echo ========================================
-          echo DF Chinese related files
+          echo DF Chinese-related projects
           echo ========================================
 
-          dir /s /b dfhack\build\*df_chinese* 2>nul
+          dir /s /b dfhack\build\*df_chinese*.vcxproj 2>nul
+
+
+      # ============================================================
+      # 14. Inspect CMake cache
+      # ============================================================
+      - name: Inspect CMake cache
+        shell: cmd
+        run: |
+          echo ========================================
+          echo DFZH references in CMakeCache
+          echo ========================================
+
+          findstr /I /N "dfzh df_chinese" dfhack\build\CMakeCache.txt 2>nul
+
+          echo.
+          echo ========================================
+          echo DFZH CMakeLists
+          echo ========================================
+
+          type dfhack\plugins\df_chinese\CMakeLists.txt
+
+
+      # ============================================================
+      # 15. Upload build inspection
+      # ============================================================
+      - name: Upload build inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: dfzh-build-inspection
+          path: |
+            dfhack/build/*.sln
+            dfhack/build/**/*.vcxproj
+            dfhack/build/CMakeCache.txt
