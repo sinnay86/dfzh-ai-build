@@ -1,7 +1,7 @@
 #include "config.h"
 
 #include "Core.h"
-#include "Process.h"
+#include "MemAccess.h"
 #include "Debug.h"
 #include "Error.h"
 
