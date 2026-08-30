@@ -1,1 +1,11 @@
-
+name: Build DFZH-AI
+on:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Test
+        run: echo Hello World
+        shell: cmd
