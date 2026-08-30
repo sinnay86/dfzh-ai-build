@@ -302,7 +302,7 @@ jobs:
       # ============================================================
       # 11. Verify generated DFZH project
       # ============================================================
-      - name: Verify generated DFZH project
+           - name: Verify generated DFZH project
         shell: cmd
         run: |
 
@@ -313,9 +313,7 @@ jobs:
           dir /s /b ^
             dfhack\build\plugins\external\dfzh\dfzh.vcxproj
 
-          if not exist ^
-            dfhack\build\plugins\external\dfzh\dfzh.vcxproj ^
-          (
+          if not exist "dfhack\build\plugins\external\dfzh\dfzh.vcxproj" (
             echo ERROR: dfzh.vcxproj was not generated
             exit /b 1
           )
