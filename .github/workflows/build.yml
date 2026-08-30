@@ -317,15 +317,16 @@ jobs:
       # ============================================================
       # 14. Build DFZH
       # ============================================================
-      - name: Build dfzh
-        shell: cmd
-        run: |
-          cd dfhack\build
+      - name: List build targets
+  shell: cmd
+  run: |
+    cd dfhack\build
 
-          cmake --build . ^
-            --config Release ^
-            --target dfzh ^
-            -- /m
+    echo ========================================
+    echo Available build targets
+    echo ========================================
+
+    cmake --build . --config Release --target help
 
 
       # ============================================================
