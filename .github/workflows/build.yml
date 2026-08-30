@@ -334,7 +334,6 @@ jobs:
             --target dfzh ^
             -- /m
 
-
       # ============================================================
       # 13. Find DFZH DLL
       # ============================================================
@@ -354,7 +353,7 @@ jobs:
             dfhack\build\*.dll
 
 
-          # ============================================================
+      # ============================================================
       # 14. Create release package
       # ============================================================
       - name: Create release package
@@ -377,7 +376,7 @@ jobs:
           set "DFZH_DLL=dfhack\build\plugins\external\dfzh\Release\dfzh.plug.dll"
 
           if not exist "%DFZH_DLL%" (
-            echo ERROR: DFZH DLL not found:
+            echo ERROR: DFZH DLL not found
             echo %DFZH_DLL%
             exit /b 1
           )
@@ -390,7 +389,7 @@ jobs:
           )
 
           echo.
-          echo DFZH DLL copied successfully:
+          echo DFZH DLL copied successfully
           dir "release-package\plugins"
 
 
