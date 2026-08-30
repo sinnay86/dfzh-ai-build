@@ -40,7 +40,43 @@ jobs:
           git submodule update --init --depth 1 library/xml
 
       # ============================================================
-      # 4. Install current vcpkg
+      # 4. Locate Visual Studio
+      # ============================================================
+      - name: Locate Visual Studio
+        shell: cmd
+        run: |
+          echo ========================================
+          echo Visual Studio
+          echo ========================================
+
+          where vswhere
+
+          echo.
+          echo Installation path:
+
+          for /f "usebackq tokens=*" %%i in (`vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+            set "VS_PATH=%%i"
+          )
+
+          if not defined VS_PATH (
+            echo ERROR: Visual Studio installation not found.
+            exit /b 1
+          )
+
+          echo %VS_PATH%
+
+          echo.
+          echo MSBuild:
+
+          if exist "%VS_PATH%\MSBuild\Current\Bin\MSBuild.exe" (
+            echo %VS_PATH%\MSBuild\Current\Bin\MSBuild.exe
+          ) else (
+            echo ERROR: MSBuild.exe not found.
+            exit /b 1
+          )
+
+      # ============================================================
+      # 5. Install current vcpkg
       # ============================================================
       - name: Install vcpkg
         shell: cmd
@@ -50,7 +86,7 @@ jobs:
           call bootstrap-vcpkg.bat
 
       # ============================================================
-      # 5. Cache vcpkg
+      # 6. Cache vcpkg
       # ============================================================
       - name: Cache vcpkg
         uses: actions/cache@v4
@@ -63,27 +99,32 @@ jobs:
             vcpkg-dfzh-${{ runner.os }}-x64-
 
       # ============================================================
-      # 6. Install dependencies
+      # 7. Install DFZH dependencies
       # ============================================================
       - name: Install dependencies
         shell: cmd
         run: |
           cd vcpkg
-          vcpkg install detours:x64-windows spdlog:x64-windows tomlplusplus:x64-windows
+
+          vcpkg install ^
+            detours:x64-windows ^
+            spdlog:x64-windows ^
+            tomlplusplus:x64-windows
 
       # ============================================================
-      # 7. Copy vcpkg dependencies into DFZH's expected directory
+      # 8. Prepare DFZH vcpkg dependencies
       # ============================================================
       - name: Prepare dfzh dependencies
         shell: cmd
         run: |
           if not exist dfzh-source\3rdParty mkdir dfzh-source\3rdParty
+
           if not exist dfzh-source\3rdParty\vcpkg_installed mkdir dfzh-source\3rdParty\vcpkg_installed
 
           xcopy /E /I /Y vcpkg\installed\* dfzh-source\3rdParty\vcpkg_installed\
 
       # ============================================================
-      # 8. Extract data.zip
+      # 9. Extract data.zip
       # ============================================================
       - name: Extract data.zip
         shell: cmd
@@ -92,7 +133,7 @@ jobs:
           tar -xf data.zip
 
       # ============================================================
-      # 9. Copy DFZH into DFHack plugin directory
+      # 10. Copy DFZH into DFHack
       # ============================================================
       - name: Copy dfzh to DFHack
         shell: cmd
@@ -108,7 +149,7 @@ jobs:
           xcopy /E /I /Y dfzh-source\3rdParty dfhack\plugins\df_chinese\3rdParty
 
       # ============================================================
-      # 10. Verify source tree
+      # 11. Verify source
       # ============================================================
       - name: Verify plugin source
         shell: cmd
@@ -120,35 +161,10 @@ jobs:
           dir /s /b dfhack\plugins\df_chinese
 
       # ============================================================
-      # 11. Check Visual Studio
-      # ============================================================
-      - name: Check Visual Studio
-        shell: cmd
-        run: |
-          echo ========================================
-          echo Visual Studio
-          echo ========================================
-
-          where vswhere
-
-          echo.
-          echo Installed Visual Studio:
-          vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-
-          echo.
-          echo CMake:
-          cmake --version
-
-          echo.
-          echo MSBuild:
-          where msbuild
-
-      # ============================================================
       # 12. Configure CMake
       #
-      # Do NOT force "-G Visual Studio 17 2022".
-      # GitHub's Windows runner already provides the correct
-      # Visual Studio environment.
+      # windows-latest currently uses Visual Studio 18.
+      # Do not hard-code the VS 2022 generator.
       # ============================================================
       - name: Configure CMake
         shell: cmd
@@ -161,6 +177,7 @@ jobs:
           cd build
 
           cmake .. ^
+            -G "Visual Studio 18 2026" ^
             -A x64 ^
             -DCMAKE_TOOLCHAIN_FILE=..\..\vcpkg\scripts\buildsystems\vcpkg.cmake ^
             -DBUILD_DFHACK_DOCUMENTATION=OFF ^
@@ -180,7 +197,7 @@ jobs:
             -- /m
 
       # ============================================================
-      # 14. Find generated DLL
+      # 14. Find DFZH DLL
       # ============================================================
       - name: Find DFZH DLL
         shell: cmd
@@ -247,7 +264,6 @@ jobs:
       # 16. Upload artifact
       # ============================================================
       - name: Upload release package
-      # ============================================================
         uses: actions/upload-artifact@v4
         with:
           name: dfzh-ai-release-package
