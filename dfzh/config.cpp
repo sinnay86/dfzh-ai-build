@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include "Core.h"
+#include "Process.h"
 #include "Debug.h"
 #include "Error.h"
 
