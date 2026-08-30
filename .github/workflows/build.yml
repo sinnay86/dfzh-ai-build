@@ -31,7 +31,7 @@ jobs:
           git clone --depth 1 --branch %DFHACK_VERSION% https://github.com/DFHack/dfhack.git dfhack
 
       # ============================================================
-      # 3. Initialize required DFHack submodule
+      # 3. Initialize DFHack submodule
       # ============================================================
       - name: Init DFHack submodules
         shell: cmd
@@ -50,7 +50,7 @@ jobs:
           call bootstrap-vcpkg.bat
 
       # ============================================================
-      # 5. Cache vcpkg packages
+      # 5. Cache vcpkg
       # ============================================================
       - name: Cache vcpkg
         uses: actions/cache@v4
@@ -58,12 +58,12 @@ jobs:
           path: |
             vcpkg/installed
             vcpkg/packages
-          key: vcpkg-dfzh-${{ runner.os }}-x64-current-${{ github.run_id }}
+          key: vcpkg-dfzh-${{ runner.os }}-x64-${{ github.run_id }}
           restore-keys: |
-            vcpkg-dfzh-${{ runner.os }}-x64-current-
+            vcpkg-dfzh-${{ runner.os }}-x64-
 
       # ============================================================
-      # 6. Install DFZH dependencies
+      # 6. Install dependencies
       # ============================================================
       - name: Install dependencies
         shell: cmd
@@ -72,11 +72,7 @@ jobs:
           vcpkg install detours:x64-windows spdlog:x64-windows tomlplusplus:x64-windows
 
       # ============================================================
-      # 7. Prepare DFZH vcpkg dependency directory
-      #
-      # DFZH's CMakeLists.txt expects:
-      #
-      # 3rdParty/vcpkg_installed/x64-windows/
+      # 7. Copy vcpkg dependencies into DFZH's expected directory
       # ============================================================
       - name: Prepare dfzh dependencies
         shell: cmd
@@ -112,37 +108,66 @@ jobs:
           xcopy /E /I /Y dfzh-source\3rdParty dfhack\plugins\df_chinese\3rdParty
 
       # ============================================================
-      # 10. Verify DFZH source tree
+      # 10. Verify source tree
       # ============================================================
       - name: Verify plugin source
         shell: cmd
         run: |
           echo ========================================
-          echo DFZH plugin directory
+          echo DFZH plugin source
           echo ========================================
 
           dir /s /b dfhack\plugins\df_chinese
 
       # ============================================================
-      # 11. Configure DFHack
+      # 11. Check Visual Studio
+      # ============================================================
+      - name: Check Visual Studio
+        shell: cmd
+        run: |
+          echo ========================================
+          echo Visual Studio
+          echo ========================================
+
+          where vswhere
+
+          echo.
+          echo Installed Visual Studio:
+          vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+
+          echo.
+          echo CMake:
+          cmake --version
+
+          echo.
+          echo MSBuild:
+          where msbuild
+
+      # ============================================================
+      # 12. Configure CMake
+      #
+      # Do NOT force "-G Visual Studio 17 2022".
+      # GitHub's Windows runner already provides the correct
+      # Visual Studio environment.
       # ============================================================
       - name: Configure CMake
         shell: cmd
         run: |
           cd dfhack
 
+          if exist build rmdir /S /Q build
+
           mkdir build
           cd build
 
           cmake .. ^
-            -G "Visual Studio 17 2022" ^
             -A x64 ^
             -DCMAKE_TOOLCHAIN_FILE=..\..\vcpkg\scripts\buildsystems\vcpkg.cmake ^
             -DBUILD_DFHACK_DOCUMENTATION=OFF ^
             -DBUILD_DFHACK_LAUNCHER=OFF
 
       # ============================================================
-      # 12. Build DFZH
+      # 13. Build DFZH
       # ============================================================
       - name: Build dfzh
         shell: cmd
@@ -155,7 +180,7 @@ jobs:
             -- /m
 
       # ============================================================
-      # 13. Find generated DLL
+      # 14. Find generated DLL
       # ============================================================
       - name: Find DFZH DLL
         shell: cmd
@@ -168,6 +193,7 @@ jobs:
           dir /s /b dfhack\build\plugins\dfzh.plug.dll 2>nul
           dir /s /b dfhack\build\plugins\df_chinese\dfzh.plug.dll 2>nul
 
+          echo.
           echo ========================================
           echo All DLL files
           echo ========================================
@@ -175,7 +201,7 @@ jobs:
           dir /s /b dfhack\build\*.dll
 
       # ============================================================
-      # 14. Create release package
+      # 15. Create release package
       # ============================================================
       - name: Create release package
         shell: cmd
@@ -203,12 +229,14 @@ jobs:
             exit /b 1
           )
 
+          echo.
           echo ========================================
           echo Copying DFZH data
           echo ========================================
 
           xcopy /E /I /Y dfzh-source\data\* release-package\data\dfzh\
 
+          echo.
           echo ========================================
           echo Release package
           echo ========================================
@@ -216,9 +244,10 @@ jobs:
           dir /s /b release-package
 
       # ============================================================
-      # 15. Upload artifact
+      # 16. Upload artifact
       # ============================================================
       - name: Upload release package
+      # ============================================================
         uses: actions/upload-artifact@v4
         with:
           name: dfzh-ai-release-package
