@@ -110,7 +110,7 @@ jobs:
 
 
       # ============================================================
-      # 4. Check Visual Studio / MSBuild
+      # 4. Check Visual Studio
       # ============================================================
       - name: Check Visual Studio
         shell: cmd
@@ -210,7 +210,7 @@ jobs:
 
 
       # ============================================================
-      # 8. Install DFZH dependencies
+      # 8. Install dependencies
       # ============================================================
       - name: Install dependencies
         shell: cmd
@@ -224,7 +224,7 @@ jobs:
 
 
       # ============================================================
-      # 9. Extract DFZH data.zip
+      # 9. Extract data.zip
       # ============================================================
       - name: Extract data.zip
         shell: cmd
@@ -235,19 +235,7 @@ jobs:
 
 
       # ============================================================
-      # 10. Install DFZH as an external DFHack plugin
-      #
-      # IMPORTANT:
-      #
-      # DFHack 53.06-r1 expects external plugins under:
-      #
-      #   plugins/external/
-      #
-      # The previous workflow incorrectly copied DFZH to:
-      #
-      #   plugins/df_chinese/
-      #
-      # which is NOT automatically registered.
+      # 10. Copy DFZH into DFHack external plugins
       # ============================================================
       - name: Copy dfzh to DFHack external plugins
         shell: cmd
@@ -298,9 +286,9 @@ jobs:
 
 
       # ============================================================
-      # 11. Verify DFZH external plugin
+      # 11. Verify DFZH source
       # ============================================================
-      - name: Verify dfzh external plugin
+      - name: Verify dfzh source
         shell: cmd
         run: |
 
@@ -319,29 +307,59 @@ jobs:
 
 
       # ============================================================
-      # 12. Show external plugin CMakeLists
+      # 12. Locate missing header files
+      #
+      # This is important:
+      #
+      # dfzh.cpp currently cannot find:
+      #
+      #   modules/Hotkey.h
+      #   MemoryPatcher.h
+      #
+      # We search the entire DFHack tree and DFZH tree so we know
+      # the exact location instead of guessing.
       # ============================================================
-      - name: Check external plugin registration
+      - name: Locate missing headers
         shell: cmd
         run: |
 
           echo ========================================
-          echo External plugin directory
+          echo Looking for Hotkey.h
           echo ========================================
 
-          dir /b dfhack\plugins\external
+          dir /s /b dfhack\*Hotkey.h 2>nul
 
           echo.
           echo ========================================
-          echo Existing external CMakeLists
+          echo Looking for MemoryPatcher.h
           echo ========================================
 
-          if exist dfhack\plugins\external\CMakeLists.txt (
-            type dfhack\plugins\external\CMakeLists.txt
-          ) else (
-            echo CMakeLists.txt does not exist yet.
-            echo DFHack will generate it during CMake configure.
-          )
+          dir /s /b dfhack\*MemoryPatcher.h 2>nul
+
+          echo.
+          echo ========================================
+          echo Looking for modules directory
+          echo ========================================
+
+          dir /s /b dfhack\modules 2>nul
+
+          echo.
+          echo ========================================
+          echo Looking for MemoryPatcher files
+          echo ========================================
+
+          dir /s /b dfhack\*MemoryPatcher* 2>nul
+
+          echo.
+          echo ========================================
+          echo Searching DFZH source includes
+          echo ========================================
+
+          findstr /S /I /N ^
+            "Hotkey.h MemoryPatcher.h" ^
+            dfzh-source\*.cpp ^
+            dfzh-source\*.h ^
+            2>nul
 
 
       # ============================================================
@@ -370,7 +388,7 @@ jobs:
 
 
       # ============================================================
-      # 14. Verify DFZH project was generated
+      # 14. Verify generated DFZH project
       # ============================================================
       - name: Verify generated dfzh project
         shell: cmd
