@@ -16,7 +16,7 @@ jobs:
     steps:
 
       # ============================================================
-      # 1. Checkout DFZH source
+      # 1. Checkout DFZH-AI source
       # ============================================================
       - name: Checkout dfzh source
         uses: actions/checkout@v4
@@ -25,7 +25,7 @@ jobs:
 
 
       # ============================================================
-      # 2. Checkout DFHack 53.06-r1 with ALL submodules
+      # 2. Checkout DFHack 53.06-r1
       # ============================================================
       - name: Checkout DFHack source
         shell: cmd
@@ -110,7 +110,7 @@ jobs:
 
 
       # ============================================================
-      # 4. Check Visual Studio
+      # 4. Check Visual Studio / MSBuild
       # ============================================================
       - name: Check Visual Studio
         shell: cmd
@@ -122,7 +122,7 @@ jobs:
           where vswhere
 
           echo.
-          echo Installation:
+          echo Installed Visual Studio:
 
           vswhere -latest ^
             -products * ^
@@ -137,18 +137,16 @@ jobs:
           )
 
           if not defined VS_PATH (
-            echo ERROR: Visual Studio not found.
+            echo ERROR: Visual Studio installation not found.
             exit /b 1
           )
 
           echo VS_PATH=%VS_PATH%
 
           if not exist "%VS_PATH%\MSBuild\Current\Bin\MSBuild.exe" (
-            echo ERROR: MSBuild not found.
+            echo ERROR: MSBuild.exe not found.
             exit /b 1
           )
-
-          echo MSBuild found.
 
           echo.
           echo MSBuild version:
@@ -157,20 +155,18 @@ jobs:
 
 
       # ============================================================
-      # 5. Check MSVC version
+      # 5. Check MSVC
       # ============================================================
       - name: Check MSVC version
         shell: cmd
         run: |
           echo ========================================
-          echo MSVC
+          echo MSVC versions
           echo ========================================
 
           for /f "usebackq tokens=*" %%i in (`vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
             set "VS_PATH=%%i"
           )
-
-          echo Installed MSVC versions:
 
           dir /b "%VS_PATH%\VC\Tools\MSVC"
 
@@ -189,7 +185,10 @@ jobs:
       - name: Install vcpkg
         shell: cmd
         run: |
-          git clone --depth 1 https://github.com/microsoft/vcpkg.git vcpkg
+          git clone ^
+            --depth 1 ^
+            https://github.com/microsoft/vcpkg.git ^
+            vcpkg
 
           cd vcpkg
 
@@ -211,7 +210,7 @@ jobs:
 
 
       # ============================================================
-      # 8. Install dependencies
+      # 8. Install DFZH dependencies
       # ============================================================
       - name: Install dependencies
         shell: cmd
@@ -225,7 +224,7 @@ jobs:
 
 
       # ============================================================
-      # 9. Extract data.zip
+      # 9. Extract DFZH data.zip
       # ============================================================
       - name: Extract data.zip
         shell: cmd
@@ -236,52 +235,127 @@ jobs:
 
 
       # ============================================================
-      # 10. Copy DFZH into DFHack
+      # 10. Install DFZH as an external DFHack plugin
+      #
+      # IMPORTANT:
+      #
+      # DFHack 53.06-r1 expects external plugins under:
+      #
+      #   plugins/external/
+      #
+      # The previous workflow incorrectly copied DFZH to:
+      #
+      #   plugins/df_chinese/
+      #
+      # which is NOT automatically registered.
       # ============================================================
-      - name: Copy dfzh to DFHack
+      - name: Copy dfzh to DFHack external plugins
         shell: cmd
         run: |
-          if not exist dfhack\plugins\df_chinese mkdir dfhack\plugins\df_chinese
+
+          if not exist dfhack\plugins\external mkdir dfhack\plugins\external
+
+          if exist dfhack\plugins\external\dfzh (
+            rmdir /S /Q dfhack\plugins\external\dfzh
+          )
+
+          mkdir dfhack\plugins\external\dfzh
+
+          echo ========================================
+          echo Copy CMakeLists.txt
+          echo ========================================
 
           copy /Y ^
             dfzh-source\CMakeLists.txt ^
-            dfhack\plugins\df_chinese\CMakeLists.txt
+            dfhack\plugins\external\dfzh\CMakeLists.txt
+
+          echo.
+          echo ========================================
+          echo Copy source
+          echo ========================================
 
           xcopy /E /I /Y ^
             dfzh-source\dfzh ^
-            dfhack\plugins\df_chinese\dfzh
+            dfhack\plugins\external\dfzh\dfzh
+
+          echo.
+          echo ========================================
+          echo Copy data
+          echo ========================================
 
           xcopy /E /I /Y ^
             dfzh-source\data ^
-            dfhack\plugins\df_chinese\data
+            dfhack\plugins\external\dfzh\data
+
+          echo.
+          echo ========================================
+          echo Copy 3rdParty
+          echo ========================================
 
           xcopy /E /I /Y ^
             dfzh-source\3rdParty ^
-            dfhack\plugins\df_chinese\3rdParty
+            dfhack\plugins\external\dfzh\3rdParty
 
 
       # ============================================================
-      # 11. Verify DFZH source
+      # 11. Verify DFZH external plugin
       # ============================================================
-      - name: Verify plugin source
+      - name: Verify dfzh external plugin
         shell: cmd
         run: |
+
           echo ========================================
-          echo DFZH source
+          echo DFZH external plugin
           echo ========================================
 
-          dir /s /b dfhack\plugins\df_chinese
+          dir /s /b dfhack\plugins\external\dfzh
+
+          echo.
+          echo ========================================
+          echo DFZH CMakeLists.txt
+          echo ========================================
+
+          type dfhack\plugins\external\dfzh\CMakeLists.txt
 
 
       # ============================================================
-      # 12. Configure CMake
+      # 12. Show external plugin CMakeLists
+      # ============================================================
+      - name: Check external plugin registration
+        shell: cmd
+        run: |
+
+          echo ========================================
+          echo External plugin directory
+          echo ========================================
+
+          dir /b dfhack\plugins\external
+
+          echo.
+          echo ========================================
+          echo Existing external CMakeLists
+          echo ========================================
+
+          if exist dfhack\plugins\external\CMakeLists.txt (
+            type dfhack\plugins\external\CMakeLists.txt
+          ) else (
+            echo CMakeLists.txt does not exist yet.
+            echo DFHack will generate it during CMake configure.
+          )
+
+
+      # ============================================================
+      # 13. Configure CMake
       # ============================================================
       - name: Configure CMake
         shell: cmd
         run: |
+
           cd dfhack
 
-          if exist build rmdir /S /Q build
+          if exist build (
+            rmdir /S /Q build
+          )
 
           mkdir build
 
@@ -296,67 +370,126 @@ jobs:
 
 
       # ============================================================
-      # 13. Inspect generated Visual Studio projects
+      # 14. Verify DFZH project was generated
       # ============================================================
-      - name: Inspect generated projects
+      - name: Verify generated dfzh project
         shell: cmd
         run: |
+
           echo ========================================
-          echo Solution files
+          echo Looking for dfzh.vcxproj
           echo ========================================
 
-          dir /s /b dfhack\build\*.sln
-
-          echo.
-          echo ========================================
-          echo All Visual Studio projects
-          echo ========================================
-
-          dir /s /b dfhack\build\*.vcxproj
+          dir /s /b dfhack\build\dfzh.vcxproj 2>nul
 
           echo.
           echo ========================================
-          echo DFZH-related projects
+          echo All dfzh related projects
           echo ========================================
 
           dir /s /b dfhack\build\*dfzh*.vcxproj 2>nul
 
           echo.
           echo ========================================
-          echo DF Chinese-related projects
+          echo External plugin projects
           echo ========================================
 
-          dir /s /b dfhack\build\*df_chinese*.vcxproj 2>nul
+          dir /s /b dfhack\build\plugins\external\*.vcxproj 2>nul
 
 
       # ============================================================
-      # 14. Inspect CMake cache
+      # 15. Build DFZH
       # ============================================================
-      - name: Inspect CMake cache
+      - name: Build dfzh
         shell: cmd
         run: |
+
+          cd dfhack\build
+
+          cmake --build . ^
+            --config Release ^
+            --target dfzh ^
+            -- /m
+
+
+      # ============================================================
+      # 16. Find DFZH DLL
+      # ============================================================
+      - name: Find DFZH DLL
+        shell: cmd
+        run: |
+
           echo ========================================
-          echo DFZH references in CMakeCache
+          echo Searching for dfzh.plug.dll
           echo ========================================
 
-          findstr /I /N "dfzh df_chinese" dfhack\build\CMakeCache.txt 2>nul
+          dir /s /b dfhack\build\dfzh.plug.dll 2>nul
 
           echo.
           echo ========================================
-          echo DFZH CMakeLists
+          echo All DLL files
           echo ========================================
 
-          type dfhack\plugins\df_chinese\CMakeLists.txt
+          dir /s /b dfhack\build\*.dll
 
 
       # ============================================================
-      # 15. Upload build inspection
+      # 17. Create release package
       # ============================================================
-      - name: Upload build inspection
+      - name: Create release package
+        shell: cmd
+        run: |
+
+          if exist release-package (
+            rmdir /S /Q release-package
+          )
+
+          mkdir release-package
+          mkdir release-package\plugins
+          mkdir release-package\data
+          mkdir release-package\data\dfzh
+
+          echo ========================================
+          echo Copying dfzh.plug.dll
+          echo ========================================
+
+          set "FOUND_DLL="
+
+          for /r "dfhack\build" %%F in (dfzh.plug.dll) do (
+            if not defined FOUND_DLL (
+              set "FOUND_DLL=%%F"
+              copy /Y "%%F" "release-package\plugins\dfzh.plug.dll"
+            )
+          )
+
+          if not defined FOUND_DLL (
+            echo ERROR: dfzh.plug.dll was not found.
+            exit /b 1
+          )
+
+          echo.
+          echo ========================================
+          echo Copying DFZH data
+          echo ========================================
+
+          xcopy /E /I /Y ^
+            dfzh-source\data\* ^
+            release-package\data\dfzh\
+
+          echo.
+          echo ========================================
+          echo Release package
+          echo ========================================
+
+          dir /s /b release-package
+
+
+      # ============================================================
+      # 18. Upload release package
+      # ============================================================
+      - name: Upload release package
         uses: actions/upload-artifact@v4
         with:
-          name: dfzh-build-inspection
-          path: |
-            dfhack/build/*.sln
-            dfhack/build/**/*.vcxproj
-            dfhack/build/CMakeCache.txt
+          name: dfzh-ai-release-package
+          path: release-package
+          if-no-files-found: error
