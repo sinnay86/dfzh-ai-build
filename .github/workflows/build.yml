@@ -299,10 +299,10 @@ jobs:
             -DBUILD_DFHACK_LAUNCHER=OFF
 
 
-      # ============================================================
+     # ============================================================
       # 11. Verify generated DFZH project
       # ============================================================
-           - name: Verify generated DFZH project
+      - name: Verify generated DFZH project
         shell: cmd
         run: |
 
@@ -320,8 +320,6 @@ jobs:
 
           echo.
           echo DFZH project generated successfully.
-
-
       # ============================================================
       # 12. Build DFZH
       # ============================================================
