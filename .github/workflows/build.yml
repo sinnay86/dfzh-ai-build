@@ -169,7 +169,7 @@ jobs:
           path: |
             vcpkg/installed
             vcpkg/packages
-          key: vcpkg-dfzh-${{ runner.os }}-${{ VCPKG_COMMIT }}
+          key: vcpkg-dfzh-${{ runner.os }}-${{ env.VCPKG_COMMIT }}
           restore-keys: |
             vcpkg-dfzh-${{ runner.os }}-
 
