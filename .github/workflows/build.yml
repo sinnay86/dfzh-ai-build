@@ -7,7 +7,6 @@ on:
 
 env:
   DFHACK_VERSION: "53.06-r1"
-  VCPKG_COMMIT: "2024.07.12"
 
 jobs:
   build:
@@ -17,7 +16,7 @@ jobs:
     steps:
 
       # ============================================================
-      # 1. Checkout DFZH-AI source
+      # 1. Checkout DFZH-AI
       # ============================================================
       - name: Checkout DFZH-AI source
         uses: actions/checkout@v4
@@ -26,7 +25,7 @@ jobs:
 
 
       # ============================================================
-      # 2. Checkout DFHack 53.06-r1
+      # 2. Checkout exact DFHack version
       # ============================================================
       - name: Checkout DFHack source
         shell: cmd
@@ -43,23 +42,21 @@ jobs:
       # ============================================================
       # 3. Verify DFHack dependencies
       # ============================================================
-      - name: Verify DFHack
+      - name: Verify DFHack dependencies
         shell: cmd
         run: |
-          cd dfhack
-
           echo ========================================
           echo DFHack version
           echo ========================================
 
-          git rev-parse HEAD
+          cd dfhack
 
-          echo.
+          git rev-parse HEAD
           git describe --tags --always
 
           echo.
           echo ========================================
-          echo Checking dependencies
+          echo Checking DFHack submodules
           echo ========================================
 
           if not exist depends\dfhooks\CMakeLists.txt (
@@ -102,105 +99,122 @@ jobs:
 
 
       # ============================================================
-      # 4. Check Visual Studio
-      # ============================================================
-      - name: Check Visual Studio
-        shell: cmd
-        run: |
-          echo ========================================
-          echo Visual Studio
-          echo ========================================
-
-          where vswhere
-
-          echo.
-          echo Installed Visual Studio:
-
-          vswhere -latest ^
-            -products * ^
-            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 ^
-            -property installationPath
-
-          echo.
-          echo Checking MSBuild:
-
-          for /f "usebackq tokens=*" %%i in (`vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
-            set "VS_PATH=%%i"
-          )
-
-          if not defined VS_PATH (
-            echo ERROR: Visual Studio not found
-            exit /b 1
-          )
-
-          echo VS_PATH=%VS_PATH%
-
-          if not exist "%VS_PATH%\MSBuild\Current\Bin\MSBuild.exe" (
-            echo ERROR: MSBuild not found
-            exit /b 1
-          )
-
-          "%VS_PATH%\MSBuild\Current\Bin\MSBuild.exe" -version
-
-
-      # ============================================================
-      # 5. Install vcpkg
+      # 4. Install current vcpkg
+      #
+      # IMPORTANT:
+      # Do NOT pin vcpkg to the old 2024.07.12 version.
+      #
+      # The old vcpkg tries to download an obsolete MSYS2 pkgconf
+      # archive while building fmt.
       # ============================================================
       - name: Install vcpkg
         shell: cmd
         run: |
           git clone ^
             --depth 1 ^
-            --branch %VCPKG_COMMIT% ^
             https://github.com/microsoft/vcpkg.git ^
             vcpkg
 
           cd vcpkg
 
-          call bootstrap-vcpkg.bat
+          call bootstrap-vcpkg.bat -disableMetrics
+
+          if not exist vcpkg.exe (
+            echo ERROR: vcpkg.exe was not created
+            exit /b 1
+          )
+
+          vcpkg version
 
 
       # ============================================================
-      # 6. Cache vcpkg
+      # 5. Cache DFZH manifest dependencies
       # ============================================================
-      - name: Cache vcpkg
+      - name: Cache DFZH vcpkg dependencies
         uses: actions/cache@v4
         with:
           path: |
-            vcpkg/installed
-            vcpkg/packages
-          key: vcpkg-dfzh-${{ runner.os }}-${{ env.VCPKG_COMMIT }}
+            dfzh-source/3rdParty/vcpkg_installed
+            vcpkg/downloads
+            vcpkg/buildtrees
+          key: dfzh-vcpkg-${{ runner.os }}-${{ hashFiles('dfzh-source/3rdParty/vcpkg.json') }}
           restore-keys: |
-            vcpkg-dfzh-${{ runner.os }}-
+            dfzh-vcpkg-${{ runner.os }}-
 
 
       # ============================================================
-      # 7. Install dependencies
+      # 6. Install DFZH dependencies through manifest mode
+      #
+      # vcpkg.json already defines:
+      #   detours
+      #   spdlog
+      #   tomlplusplus
+      #
+      # The install directory becomes:
+      #
+      # dfzh-source/
+      #   3rdParty/
+      #     vcpkg_installed/
+      #       x64-windows/
+      #
+      # which is exactly what CMakeLists.txt expects.
       # ============================================================
-      - name: Install dependencies
+      - name: Install DFZH dependencies
         shell: cmd
         run: |
-          cd vcpkg
+          cd dfzh-source\3rdParty
 
-          vcpkg install ^
-            detours:x64-windows ^
-            spdlog:x64-windows ^
-            tomlplusplus:x64-windows
+          echo ========================================
+          echo DFZH vcpkg manifest
+          echo ========================================
+
+          type vcpkg.json
+
+          echo.
+          echo ========================================
+          echo Installing dependencies
+          echo ========================================
+
+          ..\..\vcpkg\vcpkg.exe install ^
+            --triplet x64-windows ^
+            --disable-metrics
+
+          if not exist vcpkg_installed\x64-windows\include (
+            echo ERROR: vcpkg dependencies were not installed
+            exit /b 1
+          )
+
+          echo.
+          echo ========================================
+          echo Installed packages
+          echo ========================================
+
+          dir /b vcpkg_installed\x64-windows
 
 
       # ============================================================
-      # 8. Extract data.zip
+      # 7. Extract data.zip
       # ============================================================
       - name: Extract data.zip
         shell: cmd
         run: |
           cd dfzh-source
 
+          if not exist data.zip (
+            echo ERROR: data.zip not found
+            exit /b 1
+          )
+
           tar -xf data.zip
+
+          if not exist data (
+            echo ERROR: data directory was not extracted
+            exit /b 1
+          )
 
 
       # ============================================================
-      # 9. Copy DFZH to DFHack external plugin
+      # 8. Copy DFZH into DFHack external plugin tree
       # ============================================================
       - name: Copy DFZH to DFHack
         shell: cmd
@@ -230,32 +244,50 @@ jobs:
 
 
       # ============================================================
-      # 10. Verify DFZH source
+      # 9. Verify DFZH dependencies
       # ============================================================
-      - name: Verify DFZH source
+      - name: Verify DFZH dependencies
         shell: cmd
         run: |
 
           echo ========================================
-          echo DFZH source
+          echo Checking DFZH vcpkg installation
           echo ========================================
 
-          dir /s /b dfhack\plugins\external\dfzh
+          if not exist ^
+            dfhack\plugins\external\dfzh\3rdParty\vcpkg_installed\x64-windows\include ^
+          (
+            echo ERROR: DFZH vcpkg include directory missing
+            exit /b 1
+          )
+
+          if not exist ^
+            dfhack\plugins\external\dfzh\3rdParty\vcpkg_installed\x64-windows\include\detours\detours.h ^
+          (
+            echo ERROR: Detours headers missing
+            exit /b 1
+          )
+
+          if not exist ^
+            dfhack\plugins\external\dfzh\3rdParty\vcpkg_installed\x64-windows\include\spdlog\spdlog.h ^
+          (
+            echo ERROR: spdlog headers missing
+            exit /b 1
+          )
+
+          if not exist ^
+            dfhack\plugins\external\dfzh\3rdParty\vcpkg_installed\x64-windows\include\toml++\toml.hpp ^
+          (
+            echo ERROR: toml++ headers missing
+            exit /b 1
+          )
 
           echo.
-          echo ========================================
-          echo Checking obsolete API references
-          echo ========================================
-
-          findstr /S /I /N ^
-            "MemoryPatcher.h Hotkey.h getHotkeyManager" ^
-            dfhack\plugins\external\dfzh\*.cpp ^
-            dfhack\plugins\external\dfzh\*.h ^
-            2>nul || echo No obsolete DFHack API references found.
+          echo DFZH dependencies OK.
 
 
       # ============================================================
-      # 11. Configure CMake
+      # 10. Configure CMake
       # ============================================================
       - name: Configure CMake
         shell: cmd
@@ -274,32 +306,37 @@ jobs:
           cmake .. ^
             -G "Visual Studio 17 2022" ^
             -A x64 ^
-            -DCMAKE_TOOLCHAIN_FILE=..\..\vcpkg\scripts\buildsystems\vcpkg.cmake ^
             -DBUILD_DFHACK_DOCUMENTATION=OFF ^
             -DBUILD_DFHACK_LAUNCHER=OFF
 
 
       # ============================================================
-      # 12. Verify generated DFZH project
+      # 11. Verify generated DFZH project
       # ============================================================
       - name: Verify generated DFZH project
         shell: cmd
         run: |
 
           echo ========================================
-          echo Generated DFZH project
+          echo DFZH project
           echo ========================================
 
-          dir /s /b dfhack\build\*dfzh*.vcxproj
+          dir /s /b ^
+            dfhack\build\plugins\external\dfzh\dfzh.vcxproj
 
-          if not exist dfhack\build\plugins\external\dfzh\dfzh.vcxproj (
+          if not exist ^
+            dfhack\build\plugins\external\dfzh\dfzh.vcxproj ^
+          (
             echo ERROR: dfzh.vcxproj was not generated
             exit /b 1
           )
 
+          echo.
+          echo DFZH project generated successfully.
+
 
       # ============================================================
-      # 13. Build DFZH
+      # 12. Build DFZH
       # ============================================================
       - name: Build DFZH
         shell: cmd
@@ -314,23 +351,26 @@ jobs:
 
 
       # ============================================================
-      # 14. Find DLL
+      # 13. Find DFZH DLL
       # ============================================================
       - name: Find DFZH DLL
         shell: cmd
         run: |
 
           echo ========================================
-          echo Searching for dfzh.plug.dll
+          echo Searching for DFZH DLL
           echo ========================================
 
-          dir /s /b dfhack\build\dfzh.plug.dll 2>nul
+          dir /s /b ^
+            dfhack\build\dfzh.plug.dll ^
+            2>nul
 
-          dir /s /b dfhack\build\*.dll
+          dir /s /b ^
+            dfhack\build\*.dll
 
 
       # ============================================================
-      # 15. Create release package
+      # 14. Create release package
       # ============================================================
       - name: Create release package
         shell: cmd
@@ -355,7 +395,7 @@ jobs:
           )
 
           if not defined FOUND_DLL (
-            echo ERROR: dfzh.plug.dll not found
+            echo ERROR: dfzh.plug.dll was not found
             exit /b 1
           )
 
@@ -372,7 +412,7 @@ jobs:
 
 
       # ============================================================
-      # 16. Upload artifact
+      # 15. Upload artifact
       # ============================================================
       - name: Upload release package
         uses: actions/upload-artifact@v4
