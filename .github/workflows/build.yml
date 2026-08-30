@@ -25,8 +25,8 @@ jobs:
 
 
       # ============================================================
-      # 2. Checkout DFHack 53.06-r1
-      #    DFHack requires its git submodules.
+      # 2. Checkout DFHack
+      #    Download ALL DFHack submodules.
       # ============================================================
       - name: Checkout DFHack source
         shell: cmd
@@ -107,13 +107,11 @@ jobs:
           )
 
           echo.
-          echo ========================================
           echo All required DFHack submodules are present.
-          echo ========================================
 
 
       # ============================================================
-      # 4. Locate Visual Studio 2022
+      # 4. Locate Visual Studio
       # ============================================================
       - name: Locate Visual Studio
         shell: cmd
@@ -172,15 +170,16 @@ jobs:
           echo %VS_PATH%
 
           echo.
-          echo MSVC versions installed:
+          echo Installed MSVC versions:
 
           dir /b "%VS_PATH%\VC\Tools\MSVC"
 
           echo.
-          echo MSVC compiler:
+          echo Compiler versions:
 
           for /d %%D in ("%VS_PATH%\VC\Tools\MSVC\*") do (
-            echo Testing %%D
+            echo ----------------------------------------
+            echo %%D
             "%%D\bin\Hostx64\x64\cl.exe" 2>&1 | findstr /C:"Version"
           )
 
@@ -213,7 +212,7 @@ jobs:
 
 
       # ============================================================
-      # 8. Install DFZH dependencies
+      # 8. Install dependencies
       # ============================================================
       - name: Install dependencies
         shell: cmd
@@ -227,22 +226,7 @@ jobs:
 
 
       # ============================================================
-      # 9. Prepare DFZH dependencies
-      # ============================================================
-      - name: Prepare dfzh dependencies
-        shell: cmd
-        run: |
-          if not exist dfzh-source\3rdParty mkdir dfzh-source\3rdParty
-
-          if not exist dfzh-source\3rdParty\vcpkg_installed mkdir dfzh-source\3rdParty\vcpkg_installed
-
-          xcopy /E /I /Y ^
-            vcpkg\installed\* ^
-            dfzh-source\3rdParty\vcpkg_installed\
-
-
-      # ============================================================
-      # 10. Extract data.zip
+      # 9. Extract data.zip
       # ============================================================
       - name: Extract data.zip
         shell: cmd
@@ -253,7 +237,7 @@ jobs:
 
 
       # ============================================================
-      # 11. Copy DFZH into DFHack
+      # 10. Copy DFZH into DFHack
       # ============================================================
       - name: Copy dfzh to DFHack
         shell: cmd
@@ -278,7 +262,7 @@ jobs:
 
 
       # ============================================================
-      # 12. Verify DFZH source
+      # 11. Verify DFZH source
       # ============================================================
       - name: Verify plugin source
         shell: cmd
@@ -291,9 +275,7 @@ jobs:
 
 
       # ============================================================
-      # 13. Configure CMake
-      #
-      # DFHack 53.06-r1 requires MSVC 2022.
+      # 12. Configure CMake
       # ============================================================
       - name: Configure CMake
         shell: cmd
@@ -315,100 +297,45 @@ jobs:
 
 
       # ============================================================
-      # 14. Build DFZH
+      # 13. List CMake build targets
+      #
+      # IMPORTANT:
+      # Do NOT assume the plugin target is named "dfzh".
       # ============================================================
       - name: List build targets
-  shell: cmd
-  run: |
-    cd dfhack\build
+        shell: cmd
+        run: |
+          cd dfhack\build
 
-    echo ========================================
-    echo Available build targets
-    echo ========================================
+          echo ========================================
+          echo Available CMake targets
+          echo ========================================
 
-    cmake --build . --config Release --target help
+          cmake --build . --config Release --target help
 
 
       # ============================================================
-      # 15. Find DFZH DLL
+      # 14. Upload CMake logs / build information
       # ============================================================
-      - name: Find DFZH DLL
+      - name: Show generated project files
         shell: cmd
         run: |
           echo ========================================
-          echo Searching for dfzh.plug.dll
+          echo Generated Visual Studio projects
           echo ========================================
 
-          dir /s /b dfhack\build\dfzh.plug.dll 2>nul
-
-          dir /s /b dfhack\build\plugins\dfzh.plug.dll 2>nul
-
-          dir /s /b dfhack\build\plugins\df_chinese\dfzh.plug.dll 2>nul
+          dir /s /b dfhack\build\*.vcxproj
 
           echo.
           echo ========================================
-          echo All DLL files
+          echo DFZH related files
           echo ========================================
 
-          dir /s /b dfhack\build\*.dll
-
-
-      # ============================================================
-      # 16. Create release package
-      # ============================================================
-      - name: Create release package
-        shell: cmd
-        run: |
-          mkdir release-package
-
-          mkdir release-package\plugins
-
-          mkdir release-package\data
-
-          mkdir release-package\data\dfzh
-
-          echo ========================================
-          echo Copying DFZH DLL
-          echo ========================================
-
-          set "FOUND_DLL="
-
-          for /r "dfhack\build" %%F in (dfzh.plug.dll) do (
-            if not defined FOUND_DLL (
-              set "FOUND_DLL=%%F"
-              copy /Y "%%F" "release-package\plugins\dfzh.plug.dll"
-            )
-          )
-
-          if not defined FOUND_DLL (
-            echo ERROR: dfzh.plug.dll was not found.
-            exit /b 1
-          )
+          dir /s /b dfhack\build\*dfzh* 2>nul
 
           echo.
           echo ========================================
-          echo Copying DFZH data
+          echo DF Chinese related files
           echo ========================================
 
-          xcopy /E /I /Y ^
-            dfzh-source\data\* ^
-            release-package\data\dfzh\
-
-
-          echo.
-          echo ========================================
-          echo Release package
-          echo ========================================
-
-          dir /s /b release-package
-
-
-      # ============================================================
-      # 17. Upload artifact
-      # ============================================================
-      - name: Upload release package
-        uses: actions/upload-artifact@v4
-        with:
-          name: dfzh-ai-release-package
-          path: release-package
-          if-no-files-found: error
+          dir /s /b dfhack\build\*df_chinese* 2>nul
