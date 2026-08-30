@@ -7,6 +7,7 @@ on:
 
 env:
   DFHACK_VERSION: "53.06-r1"
+  VCPKG_COMMIT: "2024.07.12"
 
 jobs:
   build:
@@ -18,7 +19,7 @@ jobs:
       # ============================================================
       # 1. Checkout DFZH-AI source
       # ============================================================
-      - name: Checkout dfzh source
+      - name: Checkout DFZH-AI source
         uses: actions/checkout@v4
         with:
           path: dfzh-source
@@ -40,73 +41,64 @@ jobs:
 
 
       # ============================================================
-      # 3. Verify DFHack submodules
+      # 3. Verify DFHack dependencies
       # ============================================================
-      - name: Verify DFHack submodules
+      - name: Verify DFHack
         shell: cmd
         run: |
           cd dfhack
 
           echo ========================================
-          echo DFHack commit
+          echo DFHack version
           echo ========================================
 
           git rev-parse HEAD
 
           echo.
-          echo ========================================
-          echo Submodule status
-          echo ========================================
-
-          git submodule status
+          git describe --tags --always
 
           echo.
           echo ========================================
-          echo Checking required directories
+          echo Checking dependencies
           echo ========================================
 
           if not exist depends\dfhooks\CMakeLists.txt (
-            echo ERROR: dfhooks submodule is missing.
+            echo ERROR: dfhooks missing
             exit /b 1
           )
 
           if not exist depends\googletest\CMakeLists.txt (
-            echo ERROR: googletest submodule is missing.
+            echo ERROR: googletest missing
             exit /b 1
           )
 
           if not exist depends\jsoncpp-sub\CMakeLists.txt (
-            echo ERROR: jsoncpp submodule is missing.
+            echo ERROR: jsoncpp missing
             exit /b 1
           )
 
           if not exist depends\clsocket\CMakeLists.txt (
-            echo ERROR: clsocket submodule is missing.
+            echo ERROR: clsocket missing
             exit /b 1
           )
 
           if not exist depends\libzip\CMakeLists.txt (
-            echo ERROR: libzip submodule is missing.
+            echo ERROR: libzip missing
             exit /b 1
           )
 
           if not exist depends\xlsxio\CMakeLists.txt (
-            echo ERROR: xlsxio submodule is missing.
+            echo ERROR: xlsxio missing
             exit /b 1
           )
 
           if not exist depends\libexpat\expat (
-            echo ERROR: libexpat submodule is missing.
-            exit /b 1
-          )
-
-          if not exist scripts\CMakeLists.txt (
-            echo ERROR: DFHack scripts directory is missing.
+            echo ERROR: libexpat missing
             exit /b 1
           )
 
           echo.
-          echo All required DFHack submodules are present.
+          echo DFHack dependencies OK.
 
 
       # ============================================================
@@ -130,63 +122,36 @@ jobs:
             -property installationPath
 
           echo.
-          echo MSBuild:
+          echo Checking MSBuild:
 
           for /f "usebackq tokens=*" %%i in (`vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
             set "VS_PATH=%%i"
           )
 
           if not defined VS_PATH (
-            echo ERROR: Visual Studio installation not found.
+            echo ERROR: Visual Studio not found
             exit /b 1
           )
 
           echo VS_PATH=%VS_PATH%
 
           if not exist "%VS_PATH%\MSBuild\Current\Bin\MSBuild.exe" (
-            echo ERROR: MSBuild.exe not found.
+            echo ERROR: MSBuild not found
             exit /b 1
           )
-
-          echo.
-          echo MSBuild version:
 
           "%VS_PATH%\MSBuild\Current\Bin\MSBuild.exe" -version
 
 
       # ============================================================
-      # 5. Check MSVC
-      # ============================================================
-      - name: Check MSVC version
-        shell: cmd
-        run: |
-          echo ========================================
-          echo MSVC versions
-          echo ========================================
-
-          for /f "usebackq tokens=*" %%i in (`vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
-            set "VS_PATH=%%i"
-          )
-
-          dir /b "%VS_PATH%\VC\Tools\MSVC"
-
-          echo.
-
-          for /d %%D in ("%VS_PATH%\VC\Tools\MSVC\*") do (
-            echo ----------------------------------------
-            echo %%D
-            "%%D\bin\Hostx64\x64\cl.exe" 2>&1
-          )
-
-
-      # ============================================================
-      # 6. Install vcpkg
+      # 5. Install vcpkg
       # ============================================================
       - name: Install vcpkg
         shell: cmd
         run: |
           git clone ^
             --depth 1 ^
+            --branch %VCPKG_COMMIT% ^
             https://github.com/microsoft/vcpkg.git ^
             vcpkg
 
@@ -196,7 +161,7 @@ jobs:
 
 
       # ============================================================
-      # 7. Cache vcpkg
+      # 6. Cache vcpkg
       # ============================================================
       - name: Cache vcpkg
         uses: actions/cache@v4
@@ -204,13 +169,13 @@ jobs:
           path: |
             vcpkg/installed
             vcpkg/packages
-          key: vcpkg-dfzh-${{ runner.os }}-x64-${{ github.run_id }}
+          key: vcpkg-dfzh-${{ runner.os }}-${{ VCPKG_COMMIT }}
           restore-keys: |
-            vcpkg-dfzh-${{ runner.os }}-x64-
+            vcpkg-dfzh-${{ runner.os }}-
 
 
       # ============================================================
-      # 8. Install dependencies
+      # 7. Install dependencies
       # ============================================================
       - name: Install dependencies
         shell: cmd
@@ -224,7 +189,7 @@ jobs:
 
 
       # ============================================================
-      # 9. Extract data.zip
+      # 8. Extract data.zip
       # ============================================================
       - name: Extract data.zip
         shell: cmd
@@ -235,13 +200,11 @@ jobs:
 
 
       # ============================================================
-      # 10. Copy DFZH into DFHack external plugins
+      # 9. Copy DFZH to DFHack external plugin
       # ============================================================
-      - name: Copy dfzh to DFHack external plugins
+      - name: Copy DFZH to DFHack
         shell: cmd
         run: |
-
-          if not exist dfhack\plugins\external mkdir dfhack\plugins\external
 
           if exist dfhack\plugins\external\dfzh (
             rmdir /S /Q dfhack\plugins\external\dfzh
@@ -249,36 +212,17 @@ jobs:
 
           mkdir dfhack\plugins\external\dfzh
 
-          echo ========================================
-          echo Copy CMakeLists.txt
-          echo ========================================
-
           copy /Y ^
             dfzh-source\CMakeLists.txt ^
             dfhack\plugins\external\dfzh\CMakeLists.txt
-
-          echo.
-          echo ========================================
-          echo Copy source
-          echo ========================================
 
           xcopy /E /I /Y ^
             dfzh-source\dfzh ^
             dfhack\plugins\external\dfzh\dfzh
 
-          echo.
-          echo ========================================
-          echo Copy data
-          echo ========================================
-
           xcopy /E /I /Y ^
             dfzh-source\data ^
             dfhack\plugins\external\dfzh\data
-
-          echo.
-          echo ========================================
-          echo Copy 3rdParty
-          echo ========================================
 
           xcopy /E /I /Y ^
             dfzh-source\3rdParty ^
@@ -286,84 +230,32 @@ jobs:
 
 
       # ============================================================
-      # 11. Verify DFZH source
+      # 10. Verify DFZH source
       # ============================================================
-      - name: Verify dfzh source
+      - name: Verify DFZH source
         shell: cmd
         run: |
 
           echo ========================================
-          echo DFZH external plugin
+          echo DFZH source
           echo ========================================
 
           dir /s /b dfhack\plugins\external\dfzh
 
           echo.
           echo ========================================
-          echo DFZH CMakeLists.txt
-          echo ========================================
-
-          type dfhack\plugins\external\dfzh\CMakeLists.txt
-
-
-      # ============================================================
-      # 12. Locate missing header files
-      #
-      # This is important:
-      #
-      # dfzh.cpp currently cannot find:
-      #
-      #   modules/Hotkey.h
-      #   MemoryPatcher.h
-      #
-      # We search the entire DFHack tree and DFZH tree so we know
-      # the exact location instead of guessing.
-      # ============================================================
-      - name: Locate missing headers
-        shell: cmd
-        run: |
-
-          echo ========================================
-          echo Looking for Hotkey.h
-          echo ========================================
-
-          dir /s /b dfhack\*Hotkey.h 2>nul
-
-          echo.
-          echo ========================================
-          echo Looking for MemoryPatcher.h
-          echo ========================================
-
-          dir /s /b dfhack\*MemoryPatcher.h 2>nul
-
-          echo.
-          echo ========================================
-          echo Looking for modules directory
-          echo ========================================
-
-          dir /s /b dfhack\modules 2>nul
-
-          echo.
-          echo ========================================
-          echo Looking for MemoryPatcher files
-          echo ========================================
-
-          dir /s /b dfhack\*MemoryPatcher* 2>nul
-
-          echo.
-          echo ========================================
-          echo Searching DFZH source includes
+          echo Checking obsolete API references
           echo ========================================
 
           findstr /S /I /N ^
-            "Hotkey.h MemoryPatcher.h" ^
-            dfzh-source\*.cpp ^
-            dfzh-source\*.h ^
-            2>nul
+            "MemoryPatcher.h Hotkey.h getHotkeyManager" ^
+            dfhack\plugins\external\dfzh\*.cpp ^
+            dfhack\plugins\external\dfzh\*.h ^
+            2>nul || echo No obsolete DFHack API references found.
 
 
       # ============================================================
-      # 13. Configure CMake
+      # 11. Configure CMake
       # ============================================================
       - name: Configure CMake
         shell: cmd
@@ -388,37 +280,28 @@ jobs:
 
 
       # ============================================================
-      # 14. Verify generated DFZH project
+      # 12. Verify generated DFZH project
       # ============================================================
-      - name: Verify generated dfzh project
+      - name: Verify generated DFZH project
         shell: cmd
         run: |
 
           echo ========================================
-          echo Looking for dfzh.vcxproj
+          echo Generated DFZH project
           echo ========================================
 
-          dir /s /b dfhack\build\dfzh.vcxproj 2>nul
+          dir /s /b dfhack\build\*dfzh*.vcxproj
 
-          echo.
-          echo ========================================
-          echo All dfzh related projects
-          echo ========================================
-
-          dir /s /b dfhack\build\*dfzh*.vcxproj 2>nul
-
-          echo.
-          echo ========================================
-          echo External plugin projects
-          echo ========================================
-
-          dir /s /b dfhack\build\plugins\external\*.vcxproj 2>nul
+          if not exist dfhack\build\plugins\external\dfzh\dfzh.vcxproj (
+            echo ERROR: dfzh.vcxproj was not generated
+            exit /b 1
+          )
 
 
       # ============================================================
-      # 15. Build DFZH
+      # 13. Build DFZH
       # ============================================================
-      - name: Build dfzh
+      - name: Build DFZH
         shell: cmd
         run: |
 
@@ -431,7 +314,7 @@ jobs:
 
 
       # ============================================================
-      # 16. Find DFZH DLL
+      # 14. Find DLL
       # ============================================================
       - name: Find DFZH DLL
         shell: cmd
@@ -443,16 +326,11 @@ jobs:
 
           dir /s /b dfhack\build\dfzh.plug.dll 2>nul
 
-          echo.
-          echo ========================================
-          echo All DLL files
-          echo ========================================
-
           dir /s /b dfhack\build\*.dll
 
 
       # ============================================================
-      # 17. Create release package
+      # 15. Create release package
       # ============================================================
       - name: Create release package
         shell: cmd
@@ -467,10 +345,6 @@ jobs:
           mkdir release-package\data
           mkdir release-package\data\dfzh
 
-          echo ========================================
-          echo Copying dfzh.plug.dll
-          echo ========================================
-
           set "FOUND_DLL="
 
           for /r "dfhack\build" %%F in (dfzh.plug.dll) do (
@@ -481,14 +355,9 @@ jobs:
           )
 
           if not defined FOUND_DLL (
-            echo ERROR: dfzh.plug.dll was not found.
+            echo ERROR: dfzh.plug.dll not found
             exit /b 1
           )
-
-          echo.
-          echo ========================================
-          echo Copying DFZH data
-          echo ========================================
 
           xcopy /E /I /Y ^
             dfzh-source\data\* ^
@@ -503,7 +372,7 @@ jobs:
 
 
       # ============================================================
-      # 18. Upload release package
+      # 16. Upload artifact
       # ============================================================
       - name: Upload release package
         uses: actions/upload-artifact@v4
