@@ -248,42 +248,32 @@ jobs:
       - name: Verify DFZH dependencies
         shell: cmd
         run: |
-
           echo ========================================
           echo Checking DFZH vcpkg installation
           echo ========================================
 
-          if not exist ^
-            dfhack\plugins\external\dfzh\3rdParty\vcpkg_installed\x64-windows\include ^
-          (
+          if not exist "dfhack\plugins\external\dfzh\3rdParty\vcpkg_installed\x64-windows\include" (
             echo ERROR: DFZH vcpkg include directory missing
             exit /b 1
           )
 
-          if not exist ^
-            dfhack\plugins\external\dfzh\3rdParty\vcpkg_installed\x64-windows\include\detours\detours.h ^
-          (
+          if not exist "dfhack\plugins\external\dfzh\3rdParty\vcpkg_installed\x64-windows\include\detours\detours.h" (
             echo ERROR: Detours headers missing
             exit /b 1
           )
 
-          if not exist ^
-            dfhack\plugins\external\dfzh\3rdParty\vcpkg_installed\x64-windows\include\spdlog\spdlog.h ^
-          (
+          if not exist "dfhack\plugins\external\dfzh\3rdParty\vcpkg_installed\x64-windows\include\spdlog\spdlog.h" (
             echo ERROR: spdlog headers missing
             exit /b 1
           )
 
-          if not exist ^
-            dfhack\plugins\external\dfzh\3rdParty\vcpkg_installed\x64-windows\include\toml++\toml.hpp ^
-          (
+          if not exist "dfhack\plugins\external\dfzh\3rdParty\vcpkg_installed\x64-windows\include\toml++\toml.hpp" (
             echo ERROR: toml++ headers missing
             exit /b 1
           )
 
           echo.
           echo DFZH dependencies OK.
-
 
       # ============================================================
       # 10. Configure CMake
