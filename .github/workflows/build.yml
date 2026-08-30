@@ -10,7 +10,7 @@ env:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 60
 
     steps:
@@ -26,10 +26,7 @@ jobs:
 
       # ============================================================
       # 2. Checkout DFHack 53.06-r1
-      #
-      # IMPORTANT:
-      # DFHack depends on many git submodules.
-      # --recurse-submodules is required.
+      #    DFHack requires its git submodules.
       # ============================================================
       - name: Checkout DFHack source
         shell: cmd
@@ -116,7 +113,7 @@ jobs:
 
 
       # ============================================================
-      # 4. Locate Visual Studio
+      # 4. Locate Visual Studio 2022
       # ============================================================
       - name: Locate Visual Studio
         shell: cmd
@@ -128,7 +125,15 @@ jobs:
           where vswhere
 
           echo.
-          echo Installation path:
+          echo Installed Visual Studio:
+
+          vswhere -latest ^
+            -products * ^
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 ^
+            -property installationPath
+
+          echo.
+          echo MSBuild:
 
           for /f "usebackq tokens=*" %%i in (`vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
             set "VS_PATH=%%i"
@@ -139,14 +144,10 @@ jobs:
             exit /b 1
           )
 
-          echo %VS_PATH%
-
-          echo.
-          echo Checking MSBuild:
+          echo VS_PATH=%VS_PATH%
 
           if exist "%VS_PATH%\MSBuild\Current\Bin\MSBuild.exe" (
-            echo MSBuild found:
-            echo %VS_PATH%\MSBuild\Current\Bin\MSBuild.exe
+            echo MSBuild found.
           ) else (
             echo ERROR: MSBuild.exe not found.
             exit /b 1
@@ -154,7 +155,38 @@ jobs:
 
 
       # ============================================================
-      # 5. Install current vcpkg
+      # 5. Check MSVC toolchain
+      # ============================================================
+      - name: Check MSVC toolchain
+        shell: cmd
+        run: |
+          echo ========================================
+          echo MSVC toolchain
+          echo ========================================
+
+          for /f "usebackq tokens=*" %%i in (`vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+            set "VS_PATH=%%i"
+          )
+
+          echo Visual Studio:
+          echo %VS_PATH%
+
+          echo.
+          echo MSVC versions installed:
+
+          dir /b "%VS_PATH%\VC\Tools\MSVC"
+
+          echo.
+          echo MSVC compiler:
+
+          for /d %%D in ("%VS_PATH%\VC\Tools\MSVC\*") do (
+            echo Testing %%D
+            "%%D\bin\Hostx64\x64\cl.exe" 2>&1 | findstr /C:"Version"
+          )
+
+
+      # ============================================================
+      # 6. Install vcpkg
       # ============================================================
       - name: Install vcpkg
         shell: cmd
@@ -167,7 +199,7 @@ jobs:
 
 
       # ============================================================
-      # 6. Cache vcpkg
+      # 7. Cache vcpkg
       # ============================================================
       - name: Cache vcpkg
         uses: actions/cache@v4
@@ -181,7 +213,7 @@ jobs:
 
 
       # ============================================================
-      # 7. Install DFZH dependencies
+      # 8. Install DFZH dependencies
       # ============================================================
       - name: Install dependencies
         shell: cmd
@@ -195,7 +227,7 @@ jobs:
 
 
       # ============================================================
-      # 8. Prepare DFZH vcpkg dependencies
+      # 9. Prepare DFZH dependencies
       # ============================================================
       - name: Prepare dfzh dependencies
         shell: cmd
@@ -210,7 +242,7 @@ jobs:
 
 
       # ============================================================
-      # 9. Extract data.zip
+      # 10. Extract data.zip
       # ============================================================
       - name: Extract data.zip
         shell: cmd
@@ -221,7 +253,7 @@ jobs:
 
 
       # ============================================================
-      # 10. Copy DFZH into DFHack
+      # 11. Copy DFZH into DFHack
       # ============================================================
       - name: Copy dfzh to DFHack
         shell: cmd
@@ -246,7 +278,7 @@ jobs:
 
 
       # ============================================================
-      # 11. Verify DFZH source
+      # 12. Verify DFZH source
       # ============================================================
       - name: Verify plugin source
         shell: cmd
@@ -259,9 +291,9 @@ jobs:
 
 
       # ============================================================
-      # 12. Configure CMake
+      # 13. Configure CMake
       #
-      # windows-latest currently provides Visual Studio 18.
+      # DFHack 53.06-r1 requires MSVC 2022.
       # ============================================================
       - name: Configure CMake
         shell: cmd
@@ -275,7 +307,7 @@ jobs:
           cd build
 
           cmake .. ^
-            -G "Visual Studio 18 2026" ^
+            -G "Visual Studio 17 2022" ^
             -A x64 ^
             -DCMAKE_TOOLCHAIN_FILE=..\..\vcpkg\scripts\buildsystems\vcpkg.cmake ^
             -DBUILD_DFHACK_DOCUMENTATION=OFF ^
@@ -283,7 +315,7 @@ jobs:
 
 
       # ============================================================
-      # 13. Build DFZH
+      # 14. Build DFZH
       # ============================================================
       - name: Build dfzh
         shell: cmd
@@ -297,7 +329,7 @@ jobs:
 
 
       # ============================================================
-      # 14. Find DFZH DLL
+      # 15. Find DFZH DLL
       # ============================================================
       - name: Find DFZH DLL
         shell: cmd
@@ -321,7 +353,7 @@ jobs:
 
 
       # ============================================================
-      # 15. Create release package
+      # 16. Create release package
       # ============================================================
       - name: Create release package
         shell: cmd
@@ -371,7 +403,7 @@ jobs:
 
 
       # ============================================================
-      # 16. Upload artifact
+      # 17. Upload artifact
       # ============================================================
       - name: Upload release package
         uses: actions/upload-artifact@v4
