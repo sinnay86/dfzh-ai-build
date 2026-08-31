@@ -33,6 +33,7 @@ jobs:
       - name: Checkout DFHack source
         shell: cmd
         run: |
+
           git clone ^
             --depth 1 ^
             --branch %DFHACK_VERSION% ^
@@ -111,7 +112,7 @@ jobs:
 
 
       # ============================================================
-      # 4. Install current vcpkg
+      # 4. Install vcpkg
       # ============================================================
 
       - name: Install vcpkg
@@ -174,7 +175,7 @@ jobs:
 
           echo.
           echo ========================================
-          echo Installing DFZH dependencies
+          echo Installing dependencies
           echo ========================================
 
           ..\..\vcpkg\vcpkg.exe install ^
@@ -194,6 +195,7 @@ jobs:
           dir /b vcpkg_installed\x64-windows
 
           cd ..\..
+
 
 
       # ============================================================
@@ -226,6 +228,7 @@ jobs:
           echo DFZH data extracted successfully.
 
           cd ..
+
 
 
       # ============================================================
@@ -263,6 +266,7 @@ jobs:
             "dfhack\plugins\external\dfzh\3rdParty"
 
 
+
       # ============================================================
       # 9. Verify DFZH source
       # ============================================================
@@ -297,6 +301,7 @@ jobs:
 
           echo.
           echo DFZH source OK.
+
 
 
       # ============================================================
@@ -342,6 +347,7 @@ jobs:
           echo DFZH dependencies OK.
 
 
+
       # ============================================================
       # 11. Configure CMake
       # ============================================================
@@ -371,6 +377,7 @@ jobs:
             -DBUILD_DFHACK_LAUNCHER=OFF
 
 
+
       # ============================================================
       # 12. Verify generated DFZH project
       # ============================================================
@@ -390,6 +397,7 @@ jobs:
 
           echo.
           echo DFZH project generated successfully.
+
 
 
       # ============================================================
@@ -418,6 +426,7 @@ jobs:
 
           echo.
           echo DFZH build completed successfully.
+
 
 
       # ============================================================
@@ -455,16 +464,12 @@ jobs:
             "dfhack\build\plugins\external\dfzh\Release\dfzh.plug.dll"
 
 
+
       # ============================================================
       # 15. Verify SDL2_ttf
       #
-      # This is the important part.
-      #
-      # CMakeLists.txt downloads SDL2_ttf 2.24.0
-      # and expects:
-      #
-      # SDL2_ttf.dll
-      #
+      # IMPORTANT:
+      # The actual location is inside the copied DFHack tree.
       # ============================================================
 
       - name: Verify SDL2_ttf
@@ -475,11 +480,9 @@ jobs:
           echo Searching for SDL2_ttf.dll
           echo ========================================
 
-          dir /s /b ^
-            "dfzh-source\3rdParty\SDL2_ttf\SDL2_ttf-2.24.0\lib\x64\SDL2_ttf.dll" ^
-            2>nul
+          set "SDL2_TTF_DLL=dfhack\plugins\external\dfzh\3rdParty\SDL2_ttf\SDL2_ttf-2.24.0\lib\x64\SDL2_ttf.dll"
 
-          if not exist "dfzh-source\3rdParty\SDL2_ttf\SDL2_ttf-2.24.0\lib\x64\SDL2_ttf.dll" (
+          if not exist "%SDL2_TTF_DLL%" (
             echo.
             echo ERROR: SDL2_ttf.dll was not found.
             echo.
@@ -489,22 +492,74 @@ jobs:
           )
 
           echo.
-          echo SDL2_ttf.dll found successfully.
+          echo SDL2_ttf.dll found successfully:
 
-          dir ^
-            "dfzh-source\3rdParty\SDL2_ttf\SDL2_ttf-2.24.0\lib\x64\SDL2_ttf.dll"
+          dir "%SDL2_TTF_DLL%"
+
 
 
       # ============================================================
-      # 16. Create installation directory
+      # 16. Inspect DFZH DLL dependencies
       #
-      # We deliberately create a DF-like package:
+      # Use Visual Studio dumpbin.
+      # This tells us exactly which DLLs dfzh.plug.dll imports.
+      # ============================================================
+
+      - name: Inspect DFZH DLL dependencies
+        shell: cmd
+        run: |
+
+          echo ========================================
+          echo Inspecting DFZH DLL dependencies
+          echo ========================================
+
+          set "DFZH_DLL=dfhack\build\plugins\external\dfzh\Release\dfzh.plug.dll"
+
+          if not exist "%DFZH_DLL%" (
+            echo ERROR: DFZH DLL not found
+            exit /b 1
+          )
+
+          echo.
+          echo Initializing Visual Studio environment...
+
+          call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+
+          if errorlevel 1 (
+            echo Enterprise VS environment unavailable.
+            echo Trying Community...
+            call "%ProgramFiles%\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          )
+
+          echo.
+          echo ========================================
+          echo DUMPBIN /DEPENDENTS
+          echo ========================================
+
+          where dumpbin
+
+          if errorlevel 1 (
+            echo ERROR: dumpbin.exe not found
+            exit /b 1
+          )
+
+          dumpbin /DEPENDENTS "%DFZH_DLL%"
+
+
+
+      # ============================================================
+      # 17. Create release package
+      #
+      # Final layout:
       #
       # Dwarf Fortress/
+      #
       #   SDL2_ttf.dll
+      #
       #   hack/
       #     plugins/
       #       dfzh.plug.dll
+      #
       #     data/
       #       dfzh/
       #
@@ -529,8 +584,9 @@ jobs:
           mkdir "release-package\hack\data\dfzh"
 
 
+
       # ============================================================
-      # 17. Copy DFZH plugin
+      # 18. Copy DFZH plugin
       # ============================================================
 
       - name: Copy DFZH plugin
@@ -561,8 +617,9 @@ jobs:
           echo DFZH DLL copied successfully.
 
 
+
       # ============================================================
-      # 18. Copy SDL2_ttf.dll
+      # 19. Copy SDL2_ttf.dll
       # ============================================================
 
       - name: Copy SDL2_ttf.dll
@@ -573,7 +630,7 @@ jobs:
           echo Copying SDL2_ttf.dll
           echo ========================================
 
-          set "SDL2_TTF_DLL=dfzh-source\3rdParty\SDL2_ttf\SDL2_ttf-2.24.0\lib\x64\SDL2_ttf.dll"
+          set "SDL2_TTF_DLL=dfhack\plugins\external\dfzh\3rdParty\SDL2_ttf\SDL2_ttf-2.24.0\lib\x64\SDL2_ttf.dll"
 
           if not exist "%SDL2_TTF_DLL%" (
             echo ERROR: SDL2_ttf.dll not found
@@ -595,8 +652,9 @@ jobs:
           dir "release-package\SDL2_ttf.dll"
 
 
+
       # ============================================================
-      # 19. Copy DFZH data
+      # 20. Copy DFZH data
       # ============================================================
 
       - name: Copy DFZH data
@@ -620,8 +678,9 @@ jobs:
           echo DFZH data copied successfully.
 
 
+
       # ============================================================
-      # 20. Verify final package
+      # 21. Final package verification
       # ============================================================
 
       - name: Verify final package
@@ -634,6 +693,7 @@ jobs:
 
           echo.
           echo Package contents:
+
           dir /s /b "release-package"
 
           echo.
@@ -642,12 +702,12 @@ jobs:
           echo ========================================
 
           if not exist "release-package\SDL2_ttf.dll" (
-            echo ERROR: SDL2_ttf.dll missing from final package
+            echo ERROR: SDL2_ttf.dll missing
             exit /b 1
           )
 
           if not exist "release-package\hack\plugins\dfzh.plug.dll" (
-            echo ERROR: dfzh.plug.dll missing from final package
+            echo ERROR: dfzh.plug.dll missing
             exit /b 1
           )
 
@@ -658,64 +718,21 @@ jobs:
 
           echo.
           echo ========================================
-          echo Required files OK
+          echo REQUIRED FILES OK
           echo ========================================
 
+          echo.
+          echo SDL2_ttf.dll:
+          dir "release-package\SDL2_ttf.dll"
 
-      # ============================================================
-      # 21. Scan DFZH DLL dependencies
-      #
-      # We use PowerShell to inspect strings inside the PE file.
-      # This is NOT a perfect dependency analyzer, but it provides
-      # useful diagnostic information in GitHub Actions.
-      # ============================================================
+          echo.
+          echo DFZH plugin:
+          dir "release-package\hack\plugins\dfzh.plug.dll"
 
-      - name: Scan DFZH DLL dependencies
-        shell: powershell
-        run: |
-
-          Write-Host "========================================"
-          Write-Host "DFZH DLL dependency scan"
-          Write-Host "========================================"
-
-          $dll = "release-package\hack\plugins\dfzh.plug.dll"
-
-          if (!(Test-Path $dll)) {
-              Write-Error "DFZH DLL not found"
-              exit 1
-          }
-
-          Write-Host ""
-          Write-Host "DFZH DLL:"
-          Get-Item $dll | Select-Object FullName, Length, LastWriteTime
-
-          Write-Host ""
-          Write-Host "Searching for important runtime DLL names..."
-
-          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $dll))
-          $text = [System.Text.Encoding]::ASCII.GetString($bytes)
-
-          $names = @(
-              "SDL2_ttf.dll",
-              "SDL2.dll",
-              "detours.dll",
-              "ws2_32.dll",
-              "vcruntime140.dll",
-              "msvcp140.dll"
-          )
-
-          foreach ($name in $names) {
-              if ($text -match [regex]::Escape($name)) {
-                  Write-Host "FOUND reference: $name"
-              }
-              else {
-                  Write-Host "No ASCII reference found: $name"
-              }
-          }
 
 
       # ============================================================
-      # 22. Upload release package
+      # 22. Upload artifact
       # ============================================================
 
       - name: Upload release package
